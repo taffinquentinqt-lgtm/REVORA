@@ -52,6 +52,8 @@ label: string;
 };
 
 export default function DashboardPage() {
+const DEMO_MAX_LEADS = 200;
+
 const [formData, setFormData] = useState<FormDataState>({
 companyName: "",
 companyDescription: "",
@@ -643,9 +645,11 @@ if (!validateBeforeAnalysis()) return;
 
 try {
 setIsAnalyzing(true);
-setMessage("Analyse avancée en cours...");
 
-const results = csvPreview.rows.map((row) =>
+const rowsToAnalyze = csvPreview.rows.slice(0, DEMO_MAX_LEADS);
+const wasTrimmed = csvPreview.rows.length > DEMO_MAX_LEADS;
+
+const results = rowsToAnalyze.map((row) =>
 buildLeadAnalysis(csvPreview.headers, row)
 );
 
@@ -661,9 +665,15 @@ fileName: csvFile?.name || "revora_leads.csv",
 updatedAt: new Date().toLocaleString("fr-FR"),
 });
 
+if (wasTrimmed) {
+setMessage(
+`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Version démo : seuls les ${DEMO_MAX_LEADS} premiers leads sur ${csvPreview.rows.length} ont été analysés.`
+);
+} else {
 setMessage(
 `Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Seuils utilisés : GO ${goThreshold} / MAYBE ${maybeThreshold}.`
 );
+}
 } finally {
 setIsAnalyzing(false);
 }
@@ -703,9 +713,15 @@ setMessage("Le fichier CSV est vide ou illisible.");
 return;
 }
 
+if (parsedCsv.rows.length > DEMO_MAX_LEADS) {
+setMessage(
+`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s). Version démo : seuls les ${DEMO_MAX_LEADS} premiers leads seront analysés.`
+);
+} else {
 setMessage(
 `CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s).`
 );
+}
 } catch (error) {
 console.error("Erreur lecture CSV :", error);
 setCsvFile(null);
@@ -902,7 +918,7 @@ Configure ton analyse
 </div>
 
 <div className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 md:block">
-V16
+DEMO
 </div>
 </div>
 
@@ -998,9 +1014,14 @@ Lecture du CSV en cours...
 </div>
 
 <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+<p>
 Seuils actifs : GO {goThreshold} / MAYBE {maybeThreshold} ·
 LinkedIn {includeLinkedin ? "activé" : "désactivé"} · Téléphone{" "}
 {includePhone ? "activé" : "désactivé"} · Export {exportFormat}
+</p>
+<p className="mt-2 font-medium">
+Version démo : maximum {DEMO_MAX_LEADS} leads analysés par import
+</p>
 </div>
 
 <div className="grid gap-3 pt-2 md:grid-cols-[1fr_auto]">
