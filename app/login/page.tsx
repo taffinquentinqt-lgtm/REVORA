@@ -4,31 +4,31 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { isLoggedIn, login } from "../lib/revora-auth";
+import { getSession, login } from "../lib/revora-auth";
 
 export default function LoginPage() {
 const router = useRouter();
-
 const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const [message, setMessage] = useState("");
 const [isSubmitting, setIsSubmitting] = useState(false);
 
 useEffect(() => {
-if (isLoggedIn()) {
+const session = getSession();
+if (session) {
 router.push("/dashboard");
 }
 }, [router]);
 
-function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
 event.preventDefault();
 setMessage("");
 setIsSubmitting(true);
 
-const success = login(email, password);
+const { error } = await login(email, password);
 
-if (!success) {
-setMessage("Email ou mot de passe incorrect.");
+if (error) {
+setMessage(error.message || "Connexion impossible.");
 setIsSubmitting(false);
 return;
 }
@@ -58,7 +58,7 @@ style={{ backgroundImage: "url('/revora-hero.jpg')" }}
 </div>
 
 <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-Secure access
+Demo access
 </div>
 </div>
 
@@ -72,29 +72,9 @@ Connecte-toi pour accéder au dashboard REVORA.
 </h1>
 
 <p className="mt-5 max-w-lg text-base leading-8 text-white/72">
-Analyse les leads, priorise les opportunités, exporte les
-résultats et pilote ton scoring dans une interface plus premium.
+Accès local simple avec plusieurs plans de démonstration :
+demo, starter, pro et unlimited.
 </p>
-
-<div className="mt-8 grid max-w-xl gap-4">
-<div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
-<p className="text-sm font-medium text-white">
-Scoring commercial
-</p>
-<p className="mt-1 text-sm text-white/60">
-Priorisation GO / MAYBE / SKIP selon tes réglages.
-</p>
-</div>
-
-<div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
-<p className="text-sm font-medium text-white">
-Analyse connectée
-</p>
-<p className="mt-1 text-sm text-white/60">
-Dashboard, analysis, exports et settings liés entre eux.
-</p>
-</div>
-</div>
 </div>
 </div>
 </div>
@@ -125,15 +105,6 @@ Sales intelligence platform
 </div>
 </div>
 
-<div className="mb-6 flex items-center gap-2">
-<span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/65">
-Private access
-</span>
-<span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/65">
-Demo environment
-</span>
-</div>
-
 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
 Login
 </p>
@@ -162,22 +133,9 @@ autoComplete="email"
 </div>
 
 <div className="grid gap-2">
-<div className="flex items-center justify-between gap-3">
-<label
-htmlFor="password"
-className="text-sm font-medium text-white"
->
+<label htmlFor="password" className="text-sm font-medium text-white">
 Mot de passe
 </label>
-
-<button
-type="button"
-className="text-xs font-medium text-white/45 transition hover:text-white/70"
->
-Mot de passe oublié
-</button>
-</div>
-
 <input
 id="password"
 type="password"

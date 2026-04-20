@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout } from "../lib/revora-auth";
+import { getSession, logout } from "../lib/revora-auth";
 
 const links = [
 { href: "/dashboard", label: "Dashboard" },
@@ -14,9 +14,10 @@ const links = [
 export default function TopNav() {
 const pathname = usePathname();
 const router = useRouter();
+const session = getSession();
 
-function handleLogout() {
-logout();
+async function handleLogout() {
+await logout();
 router.push("/login");
 }
 
@@ -31,6 +32,12 @@ className="inline-flex items-center gap-3 rounded-full border border-white/15 bg
 <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
 <span className="text-sm font-medium text-white/90">REVORA</span>
 </Link>
+
+{session && (
+<div className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 md:block">
+{session.email} · {session.plan.toUpperCase()}
+</div>
+)}
 </div>
 
 <div className="flex items-center gap-3">

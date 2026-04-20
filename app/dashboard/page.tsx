@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import TopNav from "../components/TopNav";
 import ProtectedPage from "../components/ProtectedPage";
+import { getSession, type RevoraPlan } from "../lib/revora-auth";
 import {
 getSettings,
 saveAnalysis,
@@ -51,9 +52,75 @@ score: number;
 label: string;
 };
 
-export default function DashboardPage() {
-const DEMO_MAX_LEADS = 200;
+function getCurrentMonthKey() {
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, "0");
+return `${year}-${month}`;
+}
 
+function getUsageStorageKey(email: string) {
+return `revora_monthly_usage_${email.toLowerCase()}`;
+}
+
+function getMonthlyUsage(email: string) {
+if (typeof window === "undefined") {
+return {
+monthKey: getCurrentMonthKey(),
+usedLeads: 0,
+};
+}
+
+const storageKey = getUsageStorageKey(email);
+const raw = localStorage.getItem(storageKey);
+const currentMonthKey = getCurrentMonthKey();
+
+if (!raw) {
+return {
+monthKey: currentMonthKey,
+usedLeads: 0,
+};
+}
+
+try {
+const parsed = JSON.parse(raw) as {
+monthKey?: string;
+usedLeads?: number;
+};
+
+if (parsed.monthKey !== currentMonthKey) {
+return {
+monthKey: currentMonthKey,
+usedLeads: 0,
+};
+}
+
+return {
+monthKey: currentMonthKey,
+usedLeads: Number(parsed.usedLeads) || 0,
+};
+} catch {
+return {
+monthKey: currentMonthKey,
+usedLeads: 0,
+};
+}
+}
+
+function saveMonthlyUsage(email: string, usedLeads: number) {
+if (typeof window === "undefined") return;
+
+const storageKey = getUsageStorageKey(email);
+localStorage.setItem(
+storageKey,
+JSON.stringify({
+monthKey: getCurrentMonthKey(),
+usedLeads,
+})
+);
+}
+
+export default function DashboardPage() {
 const [formData, setFormData] = useState<FormDataState>({
 companyName: "",
 companyDescription: "",
@@ -78,6 +145,12 @@ const [includeLinkedin, setIncludeLinkedin] = useState(true);
 const [includePhone, setIncludePhone] = useState(true);
 const [exportFormat, setExportFormat] = useState("CSV");
 
+const [sessionEmail, setSessionEmail] = useState("");
+const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
+const [sessionMonthlyLimit, setSessionMonthlyLimit] = useState<number | null>(200);
+const [sessionIsUnlimited, setSessionIsUnlimited] = useState(false);
+const [usedThisMonth, setUsedThisMonth] = useState(0);
+
 useEffect(() => {
 const settings = getSettings();
 setGoThreshold(settings.goThreshold);
@@ -85,9 +158,26 @@ setMaybeThreshold(settings.maybeThreshold);
 setIncludeLinkedin(settings.includeLinkedin);
 setIncludePhone(settings.includePhone);
 setExportFormat(settings.exportFormat);
+
+const session = getSession();
+
+if (session) {
+setSessionEmail(session.email);
+setSessionPlan(session.plan);
+setSessionMonthlyLimit(session.monthlyLimit);
+setSessionIsUnlimited(session.isUnlimited);
+
+const usage = getMonthlyUsage(session.email);
+setUsedThisMonth(usage.usedLeads);
+}
 }, []);
 
 const rowCount = useMemo(() => csvPreview.rows.length, [csvPreview.rows]);
+
+const remainingThisMonth = useMemo(() => {
+if (sessionIsUnlimited || sessionMonthlyLimit === null) return null;
+return Math.max(0, sessionMonthlyLimit - usedThisMonth);
+}, [sessionIsUnlimited, sessionMonthlyLimit, usedThisMonth]);
 
 const stats = useMemo(() => {
 const go = enrichedLeads.filter((lead) => lead.priority === "GO").length;
@@ -637,6 +727,18 @@ setMessage("Le CSV est vide ou non lisible.");
 return false;
 }
 
+if (!sessionEmail) {
+setMessage("Aucune session active détectée.");
+return false;
+}
+
+if (!sessionIsUnlimited && remainingThisMonth !== null && remainingThisMonth <= 0) {
+setMessage(
+`Quota mensuel atteint pour le plan ${sessionPlan.toUpperCase()}.`
+);
+return false;
+}
+
 return true;
 }
 
@@ -646,8 +748,18 @@ if (!validateBeforeAnalysis()) return;
 try {
 setIsAnalyzing(true);
 
-const rowsToAnalyze = csvPreview.rows.slice(0, DEMO_MAX_LEADS);
-const wasTrimmed = csvPreview.rows.length > DEMO_MAX_LEADS;
+const allowedLeadCount = sessionIsUnlimited
+? csvPreview.rows.length
+: Math.min(csvPreview.rows.length, remainingThisMonth ?? 0);
+
+const rowsToAnalyze = csvPreview.rows.slice(0, allowedLeadCount);
+
+if (!sessionIsUnlimited && allowedLeadCount <= 0) {
+setMessage(
+`Quota mensuel atteint pour le plan ${sessionPlan.toUpperCase()}.`
+);
+return;
+}
 
 const results = rowsToAnalyze.map((row) =>
 buildLeadAnalysis(csvPreview.headers, row)
@@ -665,13 +777,26 @@ fileName: csvFile?.name || "revora_leads.csv",
 updatedAt: new Date().toLocaleString("fr-FR"),
 });
 
-if (wasTrimmed) {
+if (!sessionIsUnlimited) {
+const newUsed = usedThisMonth + results.length;
+setUsedThisMonth(newUsed);
+saveMonthlyUsage(sessionEmail, newUsed);
+}
+
+if (!sessionIsUnlimited && results.length < csvPreview.rows.length) {
 setMessage(
-`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Version démo : seuls les ${DEMO_MAX_LEADS} premiers leads sur ${csvPreview.rows.length} ont été analysés.`
+`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Plan ${sessionPlan.toUpperCase()} : quota mensuel restant insuffisant, seuls ${results.length} leads sur ${csvPreview.rows.length} ont été analysés.`
+);
+} else if (sessionIsUnlimited) {
+setMessage(
+`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Plan UNLIMITED : aucune limite mensuelle appliquée.`
 );
 } else {
 setMessage(
-`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Seuils utilisés : GO ${goThreshold} / MAYBE ${maybeThreshold}.`
+`Analyse avancée terminée ✅ ${results.length} lead(s) enrichi(s). Plan ${sessionPlan.toUpperCase()} : ${Math.max(
+0,
+(sessionMonthlyLimit ?? 0) - (usedThisMonth + results.length)
+)} leads restants ce mois-ci.`
 );
 }
 } finally {
@@ -713,9 +838,19 @@ setMessage("Le fichier CSV est vide ou illisible.");
 return;
 }
 
-if (parsedCsv.rows.length > DEMO_MAX_LEADS) {
+if (sessionIsUnlimited) {
 setMessage(
-`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s). Version démo : seuls les ${DEMO_MAX_LEADS} premiers leads seront analysés.`
+`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s). Plan UNLIMITED actif.`
+);
+} else if ((remainingThisMonth ?? 0) <= 0) {
+setMessage(
+`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s). Mais ton quota mensuel est déjà atteint.`
+);
+} else if (parsedCsv.rows.length > (remainingThisMonth ?? 0)) {
+setMessage(
+`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s). Plan ${sessionPlan.toUpperCase()} : seuls ${
+remainingThisMonth ?? 0
+} leads pourront être analysés ce mois-ci.`
 );
 } else {
 setMessage(
@@ -898,10 +1033,10 @@ Score moyen
 
 <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
 <p className="text-xs uppercase tracking-wider text-white/45">
-Seuils actifs
+Plan actif
 </p>
 <p className="mt-2 text-lg font-semibold text-white">
-GO {goThreshold} / MAYBE {maybeThreshold}
+{sessionPlan.toUpperCase()}
 </p>
 </div>
 </div>
@@ -918,7 +1053,7 @@ Configure ton analyse
 </div>
 
 <div className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 md:block">
-DEMO
+V23
 </div>
 </div>
 
@@ -1019,9 +1154,19 @@ Seuils actifs : GO {goThreshold} / MAYBE {maybeThreshold} ·
 LinkedIn {includeLinkedin ? "activé" : "désactivé"} · Téléphone{" "}
 {includePhone ? "activé" : "désactivé"} · Export {exportFormat}
 </p>
+
 <p className="mt-2 font-medium">
-Version démo : maximum {DEMO_MAX_LEADS} leads analysés par import
+Plan {sessionPlan.toUpperCase()} ·{" "}
+{sessionIsUnlimited
+? "quota mensuel illimité"
+: `${usedThisMonth}/${sessionMonthlyLimit ?? 0} leads utilisés ce mois`}
 </p>
+
+{!sessionIsUnlimited && (
+<p className="mt-1">
+Restants ce mois : {remainingThisMonth ?? 0} leads
+</p>
+)}
 </div>
 
 <div className="grid gap-3 pt-2 md:grid-cols-[1fr_auto]">
