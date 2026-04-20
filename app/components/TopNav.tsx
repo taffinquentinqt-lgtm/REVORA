@@ -9,7 +9,9 @@ const links = [
 { href: "/analysis", label: "Analysis" },
 { href: "/exports", label: "Exports" },
 { href: "/settings", label: "Settings" },
+{ href: "/admin", label: "Admin" },
 ];
+
 
 export default function TopNav() {
 const pathname = usePathname();
