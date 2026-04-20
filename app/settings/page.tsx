@@ -4,60 +4,81 @@ import { useEffect, useState } from "react";
 import TopNav from "../components/TopNav";
 import ProtectedPage from "../components/ProtectedPage";
 import {
-getDefaultSettings,
-getSettings,
-saveSettings,
-} from "../lib/revora-storage";
+DEFAULT_BRIEF,
+clearGeneratedProfile,
+generateProfileFromBrief,
+getClientBrief,
+getGeneratedProfile,
+saveClientBrief,
+saveGeneratedProfile,
+type RevoraClientBrief,
+type RevoraGeneratedProfile,
+} from "../lib/revora-profile";
 
 export default function SettingsPage() {
-const defaults = getDefaultSettings();
-
-const [goThreshold, setGoThreshold] = useState(defaults.goThreshold);
-const [maybeThreshold, setMaybeThreshold] = useState(defaults.maybeThreshold);
-const [includeLinkedin, setIncludeLinkedin] = useState(defaults.includeLinkedin);
-const [includePhone, setIncludePhone] = useState(defaults.includePhone);
-const [exportFormat, setExportFormat] = useState(defaults.exportFormat);
-const [saveHistory, setSaveHistory] = useState(defaults.saveHistory);
+const [brief, setBrief] = useState<RevoraClientBrief>(DEFAULT_BRIEF);
+const [generatedProfile, setGeneratedProfile] =
+useState<RevoraGeneratedProfile | null>(null);
 const [message, setMessage] = useState("");
+const [isGenerating, setIsGenerating] = useState(false);
 
 useEffect(() => {
-const settings = getSettings();
-setGoThreshold(settings.goThreshold);
-setMaybeThreshold(settings.maybeThreshold);
-setIncludeLinkedin(settings.includeLinkedin);
-setIncludePhone(settings.includePhone);
-setExportFormat(settings.exportFormat);
-setSaveHistory(settings.saveHistory);
+const savedBrief = getClientBrief();
+const savedGeneratedProfile = getGeneratedProfile();
+
+setBrief(savedBrief);
+
+if (savedGeneratedProfile.productSummary) {
+setGeneratedProfile(savedGeneratedProfile);
+}
 }, []);
 
-function handleSave() {
-if (maybeThreshold >= goThreshold) {
-setMessage("Le seuil MAYBE doit être inférieur au seuil GO.");
+function handleChange(
+event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+) {
+const { name, value } = event.target;
+
+setBrief((prev) => ({
+...prev,
+[name]: value,
+}));
+}
+
+function handleSave(event: React.FormEvent<HTMLFormElement>) {
+event.preventDefault();
+saveClientBrief(brief);
+setMessage("Brief enregistré ✅");
+}
+
+function handleGenerateProfile() {
+if (
+!brief.offerDescription.trim() ||
+!brief.problemSolved.trim() ||
+!brief.targetCompanyTypes.trim() ||
+!brief.targetRoles.trim()
+) {
+setMessage("Merci de remplir les 4 champs avant de générer le profil.");
 return;
 }
 
-saveSettings({
-goThreshold,
-maybeThreshold,
-includeLinkedin,
-includePhone,
-exportFormat,
-saveHistory,
-});
+setIsGenerating(true);
+setMessage("");
 
-setMessage("Paramètres sauvegardés ✅");
+const profile = generateProfileFromBrief(brief);
+
+saveClientBrief(brief);
+saveGeneratedProfile(profile);
+setGeneratedProfile(profile);
+setIsGenerating(false);
+setMessage("Profil d’analyse généré ✅");
 }
 
 function handleReset() {
-const settings = getDefaultSettings();
-setGoThreshold(settings.goThreshold);
-setMaybeThreshold(settings.maybeThreshold);
-setIncludeLinkedin(settings.includeLinkedin);
-setIncludePhone(settings.includePhone);
-setExportFormat(settings.exportFormat);
-setSaveHistory(settings.saveHistory);
-saveSettings(settings);
-setMessage("Paramètres réinitialisés ✅");
+setBrief(DEFAULT_BRIEF);
+setGeneratedProfile(null);
+saveClientBrief(DEFAULT_BRIEF);
+clearGeneratedProfile();
+setMessage("Profil réinitialisé ✅");
 }
 
 return (
@@ -65,241 +86,284 @@ return (
 <main className="min-h-screen bg-slate-950 text-white">
 <TopNav />
 
-<div className="mx-auto max-w-[1600px] px-6 py-8">
-<section className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Settings
+<div className="mx-auto flex w-full max-w-[1300px] flex-col gap-8 px-6 py-8">
+<section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_30%),radial-gradient(circle_at_left,rgba(34,211,238,0.14),transparent_20%)]" />
+
+<div className="relative p-8 md:p-10">
+<p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
+Analysis setup
 </p>
 
-<h1 className="mt-3 text-4xl font-semibold text-white">
-Paramètres REVORA
+<h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl">
+Configure ton
+<span className="bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
+{" "}
+analyse REVORA
+</span>
 </h1>
 
-<p className="mt-4 max-w-3xl text-white/70">
-Ces réglages influencent maintenant réellement le dashboard et les
-exports.
+<p className="mt-5 max-w-2xl text-base leading-8 text-white/70">
+Définis ton offre et ta cible. REVORA génère ensuite un profil
+d’analyse plus intelligent pour prioriser tes leads.
 </p>
-</section>
-
-<section className="mt-8 grid gap-8 xl:grid-cols-2">
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Scoring rules
-</p>
-
-<h2 className="mt-3 text-2xl font-semibold text-white">
-Seuils de priorité
-</h2>
-
-<div className="mt-6 grid gap-5">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<div className="flex items-center justify-between gap-4">
-<div>
-<p className="font-medium text-white">Seuil GO</p>
-<p className="mt-1 text-sm text-white/55">
-À partir de quel score un lead passe en GO
-</p>
-</div>
-<span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-sm font-semibold text-emerald-300">
-{goThreshold}
-</span>
-</div>
-
-<input
-type="range"
-min="50"
-max="95"
-value={goThreshold}
-onChange={(e) => setGoThreshold(Number(e.target.value))}
-className="mt-4 w-full"
-/>
-</div>
-
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<div className="flex items-center justify-between gap-4">
-<div>
-<p className="font-medium text-white">Seuil MAYBE</p>
-<p className="mt-1 text-sm text-white/55">
-À partir de quel score un lead passe en MAYBE
-</p>
-</div>
-<span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-300">
-{maybeThreshold}
-</span>
-</div>
-
-<input
-type="range"
-min="20"
-max="70"
-value={maybeThreshold}
-onChange={(e) => setMaybeThreshold(Number(e.target.value))}
-className="mt-4 w-full"
-/>
-</div>
-</div>
-</div>
-
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Analysis preferences
-</p>
-
-<h2 className="mt-3 text-2xl font-semibold text-white">
-Préférences d’analyse
-</h2>
-
-<div className="mt-6 grid gap-4">
-<button
-type="button"
-onClick={() => setIncludeLinkedin(!includeLinkedin)}
-className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-5 text-left"
->
-<div>
-<p className="font-medium text-white">Prendre LinkedIn en compte</p>
-<p className="mt-1 text-sm text-white/55">
-Valoriser les profils LinkedIn présents dans le scoring
-</p>
-</div>
-<span
-className={`rounded-full px-3 py-1 text-xs font-semibold ${
-includeLinkedin
-? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
-: "bg-slate-500/15 text-slate-300 ring-1 ring-white/10"
-}`}
->
-{includeLinkedin ? "Activé" : "Désactivé"}
-</span>
-</button>
-
-<button
-type="button"
-onClick={() => setIncludePhone(!includePhone)}
-className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-5 text-left"
->
-<div>
-<p className="font-medium text-white">Prendre le téléphone en compte</p>
-<p className="mt-1 text-sm text-white/55">
-Valoriser la présence d’un numéro dans le lead scoring
-</p>
-</div>
-<span
-className={`rounded-full px-3 py-1 text-xs font-semibold ${
-includePhone
-? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
-: "bg-slate-500/15 text-slate-300 ring-1 ring-white/10"
-}`}
->
-{includePhone ? "Activé" : "Désactivé"}
-</span>
-</button>
-</div>
 </div>
 </section>
 
-<section className="mt-8 grid gap-8 xl:grid-cols-2">
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Export preferences
+<section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
+<section className="rounded-[32px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="mb-6">
+<p className="text-sm font-medium text-blue-600">
+Brief commercial
 </p>
-
-<h2 className="mt-3 text-2xl font-semibold text-white">
-Paramètres d’export
+<h2 className="mt-1 text-2xl font-semibold">
+Formulaire 4 champs
 </h2>
+<p className="mt-2 text-sm text-slate-500">
+Décris simplement ton offre et ta cible. REVORA s’occupe
+d’enrichir la logique d’analyse.
+</p>
+</div>
 
-<div className="mt-6 grid gap-5">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<label className="block text-sm font-medium text-white">
-Format par défaut
+<form onSubmit={handleSave} className="grid gap-5">
+<div className="grid gap-2">
+<label
+htmlFor="offerDescription"
+className="text-sm font-semibold"
+>
+Que vendez-vous ?
 </label>
-
-<select
-value={exportFormat}
-onChange={(e) => setExportFormat(e.target.value)}
-className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none"
->
-<option value="CSV">CSV</option>
-<option value="XLSX">XLSX</option>
-<option value="JSON">JSON</option>
-</select>
+<textarea
+id="offerDescription"
+name="offerDescription"
+rows={3}
+value={brief.offerDescription}
+onChange={handleChange}
+placeholder="Ex. Solution SaaS qui aide les équipes commerciales B2B à mieux qualifier et prioriser leurs leads."
+className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+/>
 </div>
 
+<div className="grid gap-2">
+<label htmlFor="problemSolved" className="text-sm font-semibold">
+Quel problème principal résolvez-vous ?
+</label>
+<textarea
+id="problemSolved"
+name="problemSolved"
+rows={3}
+value={brief.problemSolved}
+onChange={handleChange}
+placeholder="Ex. Les commerciaux perdent du temps sur des leads peu qualifiés et savent mal lesquels traiter en priorité."
+className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+/>
+</div>
+
+<div className="grid gap-2">
+<label
+htmlFor="targetCompanyTypes"
+className="text-sm font-semibold"
+>
+Quel type d’entreprise ciblez-vous ?
+</label>
+<input
+id="targetCompanyTypes"
+name="targetCompanyTypes"
+type="text"
+value={brief.targetCompanyTypes}
+onChange={handleChange}
+placeholder="Ex. PME B2B, SaaS, cabinets de conseil, services tech."
+className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+/>
+</div>
+
+<div className="grid gap-2">
+<label htmlFor="targetRoles" className="text-sm font-semibold">
+Quels profils souhaitez-vous contacter ?
+</label>
+<input
+id="targetRoles"
+name="targetRoles"
+type="text"
+value={brief.targetRoles}
+onChange={handleChange}
+placeholder="Ex. Head of Sales, Directeur commercial, CEO, Business Developer."
+className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+/>
+</div>
+
+<div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+Le client donne la direction. REVORA affine ensuite la logique
+d’analyse avec un profil enrichi.
+</div>
+
+<div className="flex flex-wrap gap-3 pt-2">
 <button
-type="button"
-onClick={() => setSaveHistory(!saveHistory)}
-className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-5 text-left"
+type="submit"
+className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
 >
-<div>
-<p className="font-medium text-white">Sauvegarder l’historique</p>
-<p className="mt-1 text-sm text-white/55">
-Conserver une trace des exports générés
-</p>
-</div>
-<span
-className={`rounded-full px-3 py-1 text-xs font-semibold ${
-saveHistory
-? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
-: "bg-slate-500/15 text-slate-300 ring-1 ring-white/10"
-}`}
->
-{saveHistory ? "Activé" : "Désactivé"}
-</span>
+Enregistrer le brief
 </button>
-</div>
-</div>
 
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Current config
-</p>
-
-<h2 className="mt-3 text-2xl font-semibold text-white">
-Configuration actuelle
-</h2>
-
-<div className="mt-6 grid gap-4">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm text-white/50">GO threshold</p>
-<p className="mt-2 text-xl font-semibold text-white">
-{goThreshold}
-</p>
-</div>
-
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm text-white/50">MAYBE threshold</p>
-<p className="mt-2 text-xl font-semibold text-white">
-{maybeThreshold}
-</p>
-</div>
-
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm text-white/50">Format export</p>
-<p className="mt-2 text-xl font-semibold text-white">
-{exportFormat}
-</p>
-</div>
-</div>
-
-<div className="mt-6 flex flex-wrap gap-3">
 <button
 type="button"
-onClick={handleSave}
-className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-medium text-white/80 transition hover:bg-white/15"
+onClick={handleGenerateProfile}
+disabled={isGenerating}
+className="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
 >
-Sauvegarder les paramètres
+{isGenerating
+? "Génération..."
+: "Générer mon profil d’analyse"}
 </button>
 
 <button
 type="button"
 onClick={handleReset}
-className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white/70 transition hover:bg-white/10"
+className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
 >
 Réinitialiser
 </button>
 </div>
 
-{message && <p className="mt-4 text-sm text-cyan-300">{message}</p>}
+{message && (
+<div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+{message}
 </div>
+)}
+</form>
+</section>
+
+<section className="rounded-[32px] border border-white/10 bg-white/5 p-7 text-white shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+<div className="mb-6">
+<p className="text-sm font-medium text-cyan-300">
+Profil enrichi
+</p>
+<h2 className="mt-1 text-2xl font-semibold text-white">
+Résultat généré
+</h2>
+<p className="mt-2 text-sm text-white/60">
+Ce bloc représente le profil d’analyse que REVORA utilisera
+ensuite pour mieux interpréter les leads.
+</p>
+</div>
+
+{!generatedProfile && (
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm leading-7 text-white/65">
+Remplis les 4 champs puis clique sur
+<span className="mx-1 font-medium text-white">
+Générer mon profil d’analyse
+</span>
+pour afficher le résultat ici.
+</div>
+)}
+
+{generatedProfile && (
+<div className="grid gap-4">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Produit compris
+</p>
+<p className="mt-2 text-sm leading-7 text-white/80">
+{generatedProfile.productSummary}
+</p>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Problème résolu
+</p>
+<p className="mt-2 text-sm leading-7 text-white/80">
+{generatedProfile.problemSummary}
+</p>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Promesse de valeur probable
+</p>
+<p className="mt-2 text-sm leading-7 text-white/80">
+{generatedProfile.valueProposition}
+</p>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+ICP probable
+</p>
+<p className="mt-2 text-sm leading-7 text-white/80">
+{generatedProfile.icpSummary}
+</p>
+</div>
+
+<div className="grid gap-4 md:grid-cols-2">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Fonctions cibles
+</p>
+<div className="mt-3 flex flex-wrap gap-2">
+{generatedProfile.targetFunctions.map((item, index) => (
+<span
+key={`${item}-${index}`}
+className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85"
+>
+{item}
+</span>
+))}
+</div>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Signaux d’achat recherchés
+</p>
+<div className="mt-3 flex flex-wrap gap-2">
+{generatedProfile.buyingSignals.map((item, index) => (
+<span
+key={`${item}-${index}`}
+className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85"
+>
+{item}
+</span>
+))}
+</div>
+</div>
+</div>
+
+<div className="grid gap-4 md:grid-cols-2">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Douleurs business plausibles
+</p>
+<ul className="mt-3 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.businessPains.map((item, index) => (
+<li key={`${item}-${index}`}>• {item}</li>
+))}
+</ul>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Angles commerciaux recommandés
+</p>
+<ul className="mt-3 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.recommendedAngles.map((item, index) => (
+<li key={`${item}-${index}`}>• {item}</li>
+))}
+</ul>
+</div>
+</div>
+
+<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+<p className="text-sm font-medium text-cyan-300">
+Logique de priorité retenue
+</p>
+<p className="mt-2 text-sm leading-7 text-white/80">
+{generatedProfile.priorityLogic}
+</p>
+</div>
+</div>
+)}
+</section>
 </section>
 </div>
 </main>

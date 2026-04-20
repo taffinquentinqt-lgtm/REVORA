@@ -868,16 +868,17 @@ setIsReadingCsv(false);
 }
 }
 
-function escapeCsvCell(value: string | number) {
-const stringValue = String(value ?? "");
-const escapedValue = stringValue.replace(/"/g, '""');
-return `"${escapedValue}"`;
-}
-
 function buildEnrichedCsv() {
 if (csvPreview.headers.length === 0 || enrichedLeads.length === 0) {
 return "";
 }
+
+const cleanForCsv = (value: string | number | null | undefined) => {
+return String(value ?? "")
+.replace(/\r?\n|\r/g, " | ")
+.replace(/\s+/g, " ")
+.trim();
+};
 
 const enrichedHeaders = [
 ...csvPreview.headers,
@@ -896,27 +897,32 @@ const enrichedHeaders = [
 ];
 
 const enrichedRows = enrichedLeads.map((lead) => [
-...lead.originalRow,
-String(lead.leadScore),
-lead.priority,
-lead.fitReason,
-lead.whyNow,
-lead.probableBusinessPains,
-lead.detectedOpportunities,
-lead.bestOutreachChannel,
-lead.channelReason,
-lead.emailIdea,
-lead.linkedinIdea,
-lead.callOpener,
-lead.nextBestAction,
+...csvPreview.headers.map((_, index) => cleanForCsv(lead.originalRow[index] ?? "")),
+cleanForCsv(String(lead.leadScore)),
+cleanForCsv(lead.priority),
+cleanForCsv(lead.fitReason),
+cleanForCsv(lead.whyNow),
+cleanForCsv(lead.probableBusinessPains),
+cleanForCsv(lead.detectedOpportunities),
+cleanForCsv(lead.bestOutreachChannel),
+cleanForCsv(lead.channelReason),
+cleanForCsv(lead.emailIdea),
+cleanForCsv(lead.linkedinIdea),
+cleanForCsv(lead.callOpener),
+cleanForCsv(lead.nextBestAction),
 ]);
 
-const csvLines = [
-enrichedHeaders.map(escapeCsvCell).join(","),
-...enrichedRows.map((row) => row.map(escapeCsvCell).join(",")),
-];
-
-return csvLines.join("\n");
+return Papa.unparse(
+{
+fields: enrichedHeaders,
+data: enrichedRows,
+},
+{
+delimiter: ";",
+newline: "\r\n",
+quotes: true,
+}
+);
 }
 
 function downloadEnrichedCsv() {
@@ -927,7 +933,7 @@ setMessage("Aucun CSV enrichi à télécharger.");
 return;
 }
 
-const blob = new Blob([enrichedCsv], {
+const blob = new Blob(["\uFEFF" + enrichedCsv], {
 type: "text/csv;charset=utf-8;",
 });
 
@@ -936,8 +942,7 @@ const link = document.createElement("a");
 const originalFileName =
 csvFile?.name?.replace(".csv", "") || "revora_leads";
 
-const extension = exportFormat.toLowerCase();
-const finalFileName = `${originalFileName}_enrichi_avance.${extension}`;
+const finalFileName = `${originalFileName}_enrichi_avance.csv`;
 
 link.href = url;
 link.download = finalFileName;
@@ -949,7 +954,7 @@ URL.revokeObjectURL(url);
 
 saveExport({
 fileName: finalFileName,
-format: exportFormat,
+format: "CSV",
 status: "READY",
 createdAt: new Date().toLocaleString("fr-FR"),
 leadCount: enrichedLeads.length,
