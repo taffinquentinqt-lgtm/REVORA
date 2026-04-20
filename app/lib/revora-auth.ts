@@ -1,6 +1,8 @@
+import users from "../../data/local-users.json";
+
 const AUTH_KEY = "revora_auth_session";
 
-export type RevoraPlan = "demo" | "starter" | "pro" | "unlimited";
+export type RevoraPlan = "demo" | "starter" | "pro" | "unlimited" | "custom";
 
 export type RevoraSession = {
 email: string;
@@ -17,36 +19,7 @@ monthlyLimit: number | null;
 isUnlimited: boolean;
 };
 
-const ACCOUNTS: LocalAccount[] = [
-{
-email: "demo@revora.app",
-password: "revora123",
-plan: "demo",
-monthlyLimit: 200,
-isUnlimited: false,
-},
-{
-email: "starter@revora.app",
-password: "starter123",
-plan: "starter",
-monthlyLimit: 500,
-isUnlimited: false,
-},
-{
-email: "pro@revora.app",
-password: "pro123456",
-plan: "pro",
-monthlyLimit: 2000,
-isUnlimited: false,
-},
-{
-email: "unlimited@revora.app",
-password: "unlimited123",
-plan: "unlimited",
-monthlyLimit: null,
-isUnlimited: true,
-},
-];
+const ACCOUNTS = users as LocalAccount[];
 
 export async function login(email: string, password: string) {
 if (typeof window === "undefined") {

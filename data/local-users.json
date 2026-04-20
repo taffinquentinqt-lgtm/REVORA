@@ -1,0 +1,37 @@
+[
+  {
+    "email": "demo@revora.app",
+    "password": "revora123",
+    "plan": "demo",
+    "monthlyLimit": 200,
+    "isUnlimited": false
+  },
+  {
+    "email": "starter@revora.app",
+    "password": "starter123",
+    "plan": "starter",
+    "monthlyLimit": 500,
+    "isUnlimited": false
+  },
+  {
+    "email": "pro@revora.app",
+    "password": "pro123456",
+    "plan": "pro",
+    "monthlyLimit": 2000,
+    "isUnlimited": false
+  },
+  {
+    "email": "unlimited@revora.app",
+    "password": "unlimited123",
+    "plan": "unlimited",
+    "monthlyLimit": null,
+    "isUnlimited": true
+  },
+  {
+    "email": "taffinquentin.qt@gmail.com",
+    "password": "Quentin123",
+    "plan": "unlimited",
+    "monthlyLimit": null,
+    "isUnlimited": true
+  }
+]
