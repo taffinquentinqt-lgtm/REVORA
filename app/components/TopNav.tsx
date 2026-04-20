@@ -4,19 +4,26 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { getSession, logout } from "../lib/revora-auth";
 
-const links = [
+const ADMIN_EMAILS = ["taffinquentin.qt@gmail.com"];
+
+const baseLinks = [
 { href: "/dashboard", label: "Dashboard" },
 { href: "/analysis", label: "Analysis" },
 { href: "/exports", label: "Exports" },
 { href: "/settings", label: "Settings" },
-{ href: "/admin", label: "Admin" },
 ];
-
 
 export default function TopNav() {
 const pathname = usePathname();
 const router = useRouter();
 const session = getSession();
+
+const isAdmin =
+session && ADMIN_EMAILS.includes(session.email.toLowerCase());
+
+const links = isAdmin
+? [...baseLinks, { href: "/admin", label: "Admin" }]
+: baseLinks;
 
 async function handleLogout() {
 await logout();
