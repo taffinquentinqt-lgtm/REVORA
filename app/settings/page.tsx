@@ -6,7 +6,6 @@ import ProtectedPage from "../components/ProtectedPage";
 import {
 DEFAULT_BRIEF,
 clearGeneratedProfile,
-generateProfileFromBrief,
 getClientBrief,
 getGeneratedProfile,
 saveClientBrief,
@@ -50,7 +49,7 @@ saveClientBrief(brief);
 setMessage("Brief enregistré ✅");
 }
 
-function handleGenerateProfile() {
+async function handleGenerateProfile() {
 if (
 !brief.offerDescription.trim() ||
 !brief.problemSolved.trim() ||
@@ -61,16 +60,35 @@ setMessage("Merci de remplir les 4 champs avant de générer le profil.");
 return;
 }
 
+try {
 setIsGenerating(true);
 setMessage("");
 
-const profile = generateProfileFromBrief(brief);
-
 saveClientBrief(brief);
-saveGeneratedProfile(profile);
-setGeneratedProfile(profile);
-setIsGenerating(false);
+
+const response = await fetch("/api/generate-profile", {
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+},
+body: JSON.stringify(brief),
+});
+
+const data = await response.json();
+
+if (!response.ok) {
+throw new Error(data.error || "Erreur lors de la génération.");
+}
+
+saveGeneratedProfile(data);
+setGeneratedProfile(data);
 setMessage("Profil d’analyse généré ✅");
+} catch (error) {
+console.error(error);
+setMessage("Impossible de générer le profil d’analyse.");
+} finally {
+setIsGenerating(false);
+}
 }
 
 function handleReset() {
@@ -194,7 +212,7 @@ className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition
 
 <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
 Le client donne la direction. REVORA affine ensuite la logique
-d’analyse avec un profil enrichi.
+d’analyse avec l’IA.
 </div>
 
 <div className="flex flex-wrap gap-3 pt-2">
