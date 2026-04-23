@@ -94,7 +94,7 @@ if (!response.ok) {
 throw new Error(
 data.error ||
 JSON.stringify(data) ||
-"Impossible de générer le profil d’analyse."
+"Impossible de générer le profil d’analyse V2."
 );
 }
 
