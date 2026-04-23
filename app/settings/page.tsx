@@ -79,14 +79,20 @@ targetRoles: trimmedTargetRoles,
 }),
 });
 
-const data = await response.json();
+const rawText = await response.text();
+
+let data: any = {};
+try {
+data = rawText ? JSON.parse(rawText) : {};
+} catch {
+throw new Error(
+`La route /API/generate-profile ne renvoie pas du JSON. Réponse reçue : ${rawText.slice(0, 200)}`
+);
+}
 
 if (!response.ok) {
-console.error("generate-profile response error:", data);
-
 throw new Error(
 data.error ||
-data.raw ||
 JSON.stringify(data) ||
 "Impossible de générer le profil d’analyse."
 );
