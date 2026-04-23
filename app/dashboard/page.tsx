@@ -400,7 +400,7 @@ rowsToAnalyze.length
 )} à ${Math.min(end, rowsToAnalyze.length)} / ${rowsToAnalyze.length})`
 );
 
-const response = await fetch("/api/analyze-csv", {
+const response = await fetch("/API/analyze-csv", {
 method: "POST",
 headers: {
 "Content-Type": "application/json",
