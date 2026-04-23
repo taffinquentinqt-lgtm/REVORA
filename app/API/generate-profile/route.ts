@@ -8,6 +8,13 @@ baseURL: "https://api.mammouth.ai/v1",
 
 export async function POST(req: Request) {
 try {
+if (!process.env.MAMMOUTH_API_KEY) {
+return NextResponse.json(
+{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
+{ status: 500 }
+);
+}
+
 const body = await req.json();
 const {
 offerDescription,
@@ -75,10 +82,9 @@ content: prompt,
 },
 ],
 temperature: 0.2,
-response_format: { type: "json_object" },
 });
 
-const text = response.choices[0]?.message?.content?.trim();
+const text = response.choices?.[0]?.message?.content?.trim();
 
 if (!text) {
 return NextResponse.json(
@@ -87,7 +93,19 @@ return NextResponse.json(
 );
 }
 
-const parsed = JSON.parse(text);
+let parsed: any;
+try {
+parsed = JSON.parse(text);
+} catch {
+return NextResponse.json(
+{
+error: "La réponse IA n’est pas un JSON valide.",
+raw: text,
+},
+{ status: 500 }
+);
+}
+
 return NextResponse.json(parsed);
 } catch (error: any) {
 console.error("generate-profile error:", error);
@@ -97,6 +115,8 @@ return NextResponse.json(
 error:
 error?.message ||
 error?.error?.message ||
+error?.response?.data ||
+JSON.stringify(error) ||
 "Impossible de générer le profil d’analyse.",
 },
 { status: 500 }
