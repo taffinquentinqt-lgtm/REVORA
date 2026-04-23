@@ -4,99 +4,103 @@ import { useEffect, useState } from "react";
 import TopNav from "../components/TopNav";
 import ProtectedPage from "../components/ProtectedPage";
 import {
-DEFAULT_BRIEF,
-clearGeneratedProfile,
 getClientBrief,
 getGeneratedProfile,
 saveClientBrief,
 saveGeneratedProfile,
-type RevoraClientBrief,
 type RevoraGeneratedProfile,
 } from "../lib/revora-profile";
 
 export default function SettingsPage() {
-const [brief, setBrief] = useState<RevoraClientBrief>(DEFAULT_BRIEF);
+const [offerDescription, setOfferDescription] = useState("");
+const [problemSolved, setProblemSolved] = useState("");
+const [targetCompanyTypes, setTargetCompanyTypes] = useState("");
+const [targetRoles, setTargetRoles] = useState("");
+
 const [generatedProfile, setGeneratedProfile] =
 useState<RevoraGeneratedProfile | null>(null);
-const [message, setMessage] = useState("");
-const [isGenerating, setIsGenerating] = useState(false);
+
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState("");
+const [successMessage, setSuccessMessage] = useState("");
 
 useEffect(() => {
-const savedBrief = getClientBrief();
-const savedGeneratedProfile = getGeneratedProfile();
+const brief = getClientBrief();
+const profile = getGeneratedProfile();
 
-setBrief(savedBrief);
+setOfferDescription(brief.offerDescription || "");
+setProblemSolved(brief.problemSolved || "");
+setTargetCompanyTypes(brief.targetCompanyTypes || "");
+setTargetRoles(brief.targetRoles || "");
 
-if (savedGeneratedProfile.productSummary) {
-setGeneratedProfile(savedGeneratedProfile);
+if (profile.productSummary) {
+setGeneratedProfile(profile);
 }
 }, []);
 
-function handleChange(
-event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-) {
-const { name, value } = event.target;
-
-setBrief((prev) => ({
-...prev,
-[name]: value,
-}));
-}
-
-function handleSave(event: React.FormEvent<HTMLFormElement>) {
-event.preventDefault();
-saveClientBrief(brief);
-setMessage("Brief enregistré ✅");
-}
-
 async function handleGenerateProfile() {
+try {
+setIsLoading(true);
+setError("");
+setSuccessMessage("");
+
+const trimmedOfferDescription = offerDescription.trim();
+const trimmedProblemSolved = problemSolved.trim();
+const trimmedTargetCompanyTypes = targetCompanyTypes.trim();
+const trimmedTargetRoles = targetRoles.trim();
+
 if (
-!brief.offerDescription.trim() ||
-!brief.problemSolved.trim() ||
-!brief.targetCompanyTypes.trim() ||
-!brief.targetRoles.trim()
+!trimmedOfferDescription ||
+!trimmedProblemSolved ||
+!trimmedTargetCompanyTypes ||
+!trimmedTargetRoles
 ) {
-setMessage("Merci de remplir les 4 champs avant de générer le profil.");
+setError("Tous les champs sont requis.");
 return;
 }
 
-try {
-setIsGenerating(true);
-setMessage("");
-
-saveClientBrief(brief);
+saveClientBrief({
+offerDescription: trimmedOfferDescription,
+problemSolved: trimmedProblemSolved,
+targetCompanyTypes: trimmedTargetCompanyTypes,
+targetRoles: trimmedTargetRoles,
+});
 
 const response = await fetch("/api/generate-profile", {
 method: "POST",
 headers: {
 "Content-Type": "application/json",
 },
-body: JSON.stringify(brief),
+body: JSON.stringify({
+offerDescription: trimmedOfferDescription,
+problemSolved: trimmedProblemSolved,
+targetCompanyTypes: trimmedTargetCompanyTypes,
+targetRoles: trimmedTargetRoles,
+}),
 });
 
 const data = await response.json();
 
 if (!response.ok) {
-throw new Error(data.error || "Erreur lors de la génération.");
+console.error("generate-profile response error:", data);
+
+throw new Error(
+data.error ||
+data.raw ||
+JSON.stringify(data) ||
+"Impossible de générer le profil d’analyse."
+);
 }
 
 saveGeneratedProfile(data);
 setGeneratedProfile(data);
-setMessage("Profil d’analyse généré ✅");
-} catch (error) {
-console.error(error);
-setMessage("Impossible de générer le profil d’analyse.");
+setSuccessMessage("Profil d’analyse généré avec succès ✅");
+} catch (err: any) {
+console.error("handleGenerateProfile error:", err);
+setError(err?.message || "Impossible de générer le profil d’analyse.");
 } finally {
-setIsGenerating(false);
+setIsLoading(false);
 }
-}
-
-function handleReset() {
-setBrief(DEFAULT_BRIEF);
-setGeneratedProfile(null);
-saveClientBrief(DEFAULT_BRIEF);
-clearGeneratedProfile();
-setMessage("Profil réinitialisé ✅");
 }
 
 return (
@@ -104,76 +108,54 @@ return (
 <main className="min-h-screen bg-slate-950 text-white">
 <TopNav />
 
-<div className="mx-auto flex w-full max-w-[1300px] flex-col gap-8 px-6 py-8">
-<section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-2xl shadow-slate-950/30">
-<div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_30%),radial-gradient(circle_at_left,rgba(34,211,238,0.14),transparent_20%)]" />
-
-<div className="relative p-8 md:p-10">
-<p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Analysis setup
+<div className="mx-auto max-w-7xl px-6 py-8">
+<div className="mb-8">
+<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
+Paramètres REVORA
 </p>
-
-<h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl">
-Configure ton
-<span className="bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-{" "}
-analyse REVORA
-</span>
+<h1 className="mt-3 text-3xl font-semibold md:text-5xl">
+Générer mon profil d’analyse
 </h1>
-
-<p className="mt-5 max-w-2xl text-base leading-8 text-white/70">
-Définis ton offre et ta cible. REVORA génère ensuite un profil
-d’analyse plus intelligent pour prioriser tes leads.
-</p>
-</div>
-</section>
-
-<section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-<section className="rounded-[32px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
-<div className="mb-6">
-<p className="text-sm font-medium text-blue-600">
-Brief commercial
-</p>
-<h2 className="mt-1 text-2xl font-semibold">
-Formulaire 4 champs
-</h2>
-<p className="mt-2 text-sm text-slate-500">
-Décris simplement ton offre et ta cible. REVORA s’occupe
-d’enrichir la logique d’analyse.
+<p className="mt-4 max-w-3xl text-white/70">
+Décris l’offre, le problème résolu, la cible et les profils visés.
+REVORA construit ensuite un cadrage commercial enrichi.
 </p>
 </div>
 
-<form onSubmit={handleSave} className="grid gap-5">
+<section className="grid gap-8 xl:grid-cols-[1fr_1fr]">
+<div className="rounded-[28px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="grid gap-5">
 <div className="grid gap-2">
 <label
 htmlFor="offerDescription"
 className="text-sm font-semibold"
 >
-Que vendez-vous ?
+Offre
 </label>
 <textarea
 id="offerDescription"
-name="offerDescription"
-rows={3}
-value={brief.offerDescription}
-onChange={handleChange}
-placeholder="Ex. Solution SaaS qui aide les équipes commerciales B2B à mieux qualifier et prioriser leurs leads."
+value={offerDescription}
+onChange={(event) => setOfferDescription(event.target.value)}
+rows={4}
 className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+placeholder="Exemple : logiciel de prospection B2B, service de génération de pipeline, solution d’optimisation commerciale..."
 />
 </div>
 
 <div className="grid gap-2">
-<label htmlFor="problemSolved" className="text-sm font-semibold">
-Quel problème principal résolvez-vous ?
+<label
+htmlFor="problemSolved"
+className="text-sm font-semibold"
+>
+Problème résolu
 </label>
 <textarea
 id="problemSolved"
-name="problemSolved"
-rows={3}
-value={brief.problemSolved}
-onChange={handleChange}
-placeholder="Ex. Les commerciaux perdent du temps sur des leads peu qualifiés et savent mal lesquels traiter en priorité."
+value={problemSolved}
+onChange={(event) => setProblemSolved(event.target.value)}
+rows={4}
 className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+placeholder="Exemple : aide les équipes sales à mieux prioriser leurs leads et à gagner du temps dans la qualification."
 />
 </div>
 
@@ -182,103 +164,72 @@ className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition
 htmlFor="targetCompanyTypes"
 className="text-sm font-semibold"
 >
-Quel type d’entreprise ciblez-vous ?
+Types d’entreprises ciblés
 </label>
 <input
 id="targetCompanyTypes"
-name="targetCompanyTypes"
 type="text"
-value={brief.targetCompanyTypes}
-onChange={handleChange}
-placeholder="Ex. PME B2B, SaaS, cabinets de conseil, services tech."
+value={targetCompanyTypes}
+onChange={(event) =>
+setTargetCompanyTypes(event.target.value)
+}
 className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+placeholder="Exemple : PME B2B, SaaS, agences, cabinets de conseil..."
 />
 </div>
 
 <div className="grid gap-2">
 <label htmlFor="targetRoles" className="text-sm font-semibold">
-Quels profils souhaitez-vous contacter ?
+Profils à contacter
 </label>
 <input
 id="targetRoles"
-name="targetRoles"
 type="text"
-value={brief.targetRoles}
-onChange={handleChange}
-placeholder="Ex. Head of Sales, Directeur commercial, CEO, Business Developer."
+value={targetRoles}
+onChange={(event) => setTargetRoles(event.target.value)}
 className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+placeholder="Exemple : CEO, Head of Sales, Directeur commercial, Responsable acquisition..."
 />
 </div>
-
-<div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-Le client donne la direction. REVORA affine ensuite la logique
-d’analyse avec l’IA.
-</div>
-
-<div className="flex flex-wrap gap-3 pt-2">
-<button
-type="submit"
-className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
->
-Enregistrer le brief
-</button>
 
 <button
 type="button"
 onClick={handleGenerateProfile}
-disabled={isGenerating}
-className="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+disabled={isLoading}
+className="mt-2 rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
 >
-{isGenerating
-? "Génération..."
+{isLoading
+? "Génération en cours..."
 : "Générer mon profil d’analyse"}
 </button>
 
-<button
-type="button"
-onClick={handleReset}
-className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
->
-Réinitialiser
-</button>
-</div>
-
-{message && (
-<div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-{message}
-</div>
+{error && (
+<p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+{error}
+</p>
 )}
-</form>
-</section>
 
-<section className="rounded-[32px] border border-white/10 bg-white/5 p-7 text-white shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<div className="mb-6">
-<p className="text-sm font-medium text-cyan-300">
+{successMessage && (
+<p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+{successMessage}
+</p>
+)}
+</div>
+</div>
+
+<div className="rounded-[28px] border border-white/10 bg-white/5 p-7 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
 Profil enrichi
 </p>
-<h2 className="mt-1 text-2xl font-semibold text-white">
-Résultat généré
-</h2>
-<p className="mt-2 text-sm text-white/60">
-Ce bloc représente le profil d’analyse que REVORA utilisera
-ensuite pour mieux interpréter les leads.
-</p>
-</div>
 
-{!generatedProfile && (
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm leading-7 text-white/65">
-Remplis les 4 champs puis clique sur
-<span className="mx-1 font-medium text-white">
-Générer mon profil d’analyse
-</span>
-pour afficher le résultat ici.
+{!generatedProfile ? (
+<div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-white/60">
+Aucun profil généré pour le moment.
 </div>
-)}
-
-{generatedProfile && (
-<div className="grid gap-4">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
+) : (
+<div className="mt-6 grid gap-4">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
 Produit compris
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
@@ -286,8 +237,8 @@ Produit compris
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
 Problème résolu
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
@@ -295,17 +246,17 @@ Problème résolu
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
-Promesse de valeur probable
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Promesse de valeur
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
 {generatedProfile.valueProposition}
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
 ICP probable
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
@@ -313,67 +264,53 @@ ICP probable
 </p>
 </div>
 
-<div className="grid gap-4 md:grid-cols-2">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
 Fonctions cibles
 </p>
-<div className="mt-3 flex flex-wrap gap-2">
-{generatedProfile.targetFunctions.map((item, index) => (
-<span
-key={`${item}-${index}`}
-className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85"
->
-{item}
-</span>
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.targetFunctions?.map((item, index) => (
+<li key={`${item}-${index}`}>• {item}</li>
 ))}
-</div>
+</ul>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
-Signaux d’achat recherchés
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Signaux d’achat
 </p>
-<div className="mt-3 flex flex-wrap gap-2">
-{generatedProfile.buyingSignals.map((item, index) => (
-<span
-key={`${item}-${index}`}
-className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85"
->
-{item}
-</span>
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.buyingSignals?.map((item, index) => (
+<li key={`${item}-${index}`}>• {item}</li>
 ))}
-</div>
-</div>
+</ul>
 </div>
 
-<div className="grid gap-4 md:grid-cols-2">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
 Douleurs business plausibles
 </p>
-<ul className="mt-3 grid gap-2 text-sm leading-7 text-white/80">
-{generatedProfile.businessPains.map((item, index) => (
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.businessPains?.map((item, index) => (
 <li key={`${item}-${index}`}>• {item}</li>
 ))}
 </ul>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
-Angles commerciaux recommandés
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Angles recommandés
 </p>
-<ul className="mt-3 grid gap-2 text-sm leading-7 text-white/80">
-{generatedProfile.recommendedAngles.map((item, index) => (
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+{generatedProfile.recommendedAngles?.map((item, index) => (
 <li key={`${item}-${index}`}>• {item}</li>
 ))}
 </ul>
 </div>
-</div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm font-medium text-cyan-300">
-Logique de priorité retenue
+<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Logique de priorité
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
 {generatedProfile.priorityLogic}
@@ -381,7 +318,7 @@ Logique de priorité retenue
 </div>
 </div>
 )}
-</section>
+</div>
 </section>
 </div>
 </main>
