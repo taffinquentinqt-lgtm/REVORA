@@ -120,7 +120,7 @@ return (
 Paramètres REVORA
 </p>
 <h1 className="mt-3 text-3xl font-semibold md:text-5xl">
-Générer mon profil d’analyse
+Générer mon profil d’analyse V2
 </h1>
 <p className="mt-4 max-w-3xl text-white/70">
 Décris l’offre, le problème résolu, la cible et les profils visés.
