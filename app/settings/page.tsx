@@ -66,7 +66,7 @@ targetCompanyTypes: trimmedTargetCompanyTypes,
 targetRoles: trimmedTargetRoles,
 });
 
-const response = await fetch("/API/generate-profile", {
+const response = await fetch("/api/generate-profile", {
 method: "POST",
 headers: {
 "Content-Type": "application/json",
