@@ -54,5 +54,12 @@
     "plan": "demo",
     "monthlyLimit": 200,
     "isUnlimited": false
+  },
+  {
+    "email": "venus@revora.test",
+    "password": "Venus123",
+    "plan": "unlimited",
+    "monthlyLimit": null,
+    "isUnlimited": true
   }
 ]
