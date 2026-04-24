@@ -1,122 +1,119 @@
-export type Priority = "GO" | "MAYBE" | "SKIP";
-
 export type StoredLead = {
 originalRow: string[];
 leadScore: number;
-priority: Priority;
+priority: "GO" | "MAYBE" | "SKIP";
+
+confidenceLevel: string;
+analysisDepth: string;
+
+fitIcpScore: number;
+roleRelevanceScore: number;
+dataQualityScore: number;
+needRelevanceScore: number;
+actionabilityScore: number;
+
 fitReason: string;
 whyNow: string;
-probableBusinessPains: string;
-detectedOpportunities: string;
+probableBusinessPains: string[];
+detectedOpportunities: string[];
+
 bestOutreachChannel: string;
 channelReason: string;
 emailIdea: string;
 linkedinIdea: string;
 callOpener: string;
 nextBestAction: string;
+
+probableObjection: string;
+objectionHandling: string;
+
+opportunityLevel: string;
+dealPotential: string;
+painClarity: string;
+urgencyLevel: string;
+salesReadiness: string;
+discoveryFocus: string;
+questionsToAsk: string[];
+valueHypothesis: string;
+handoffNote: string;
 };
 
-export type StoredAnalysisData = {
+export type StoredAnalysis = {
 headers: string[];
 leads: StoredLead[];
 fileName: string;
 updatedAt: string;
 };
 
-export type StoredExportItem = {
+export type StoredExport = {
 fileName: string;
 format: string;
-status: "READY" | "PROCESSING" | "ARCHIVED";
+status: string;
 createdAt: string;
 leadCount: number;
 type: string;
 };
 
-export type StoredSettings = {
-goThreshold: number;
-maybeThreshold: number;
-includeLinkedin: boolean;
-includePhone: boolean;
-exportFormat: string;
-saveHistory: boolean;
-};
-
-const ANALYSIS_KEY = "revora_last_analysis";
-const EXPORTS_KEY = "revora_exports_history";
+const ANALYSIS_KEY = "revora_latest_analysis";
+const EXPORTS_KEY = "revora_exports";
 const SETTINGS_KEY = "revora_settings";
 
-const DEFAULT_SETTINGS: StoredSettings = {
-goThreshold: 75,
-maybeThreshold: 45,
-includeLinkedin: true,
-includePhone: true,
-exportFormat: "CSV",
-saveHistory: true,
-};
-
-export function saveAnalysis(data: StoredAnalysisData) {
+export function saveAnalysis(payload: StoredAnalysis) {
 if (typeof window === "undefined") return;
-localStorage.setItem(ANALYSIS_KEY, JSON.stringify(data));
+localStorage.setItem(ANALYSIS_KEY, JSON.stringify(payload));
 }
 
-export function getAnalysis(): StoredAnalysisData | null {
+export function getAnalysis(): StoredAnalysis | null {
 if (typeof window === "undefined") return null;
 
 const raw = localStorage.getItem(ANALYSIS_KEY);
 if (!raw) return null;
 
 try {
-return JSON.parse(raw) as StoredAnalysisData;
+return JSON.parse(raw) as StoredAnalysis;
 } catch {
 return null;
 }
 }
 
-export function saveExport(item: StoredExportItem) {
+export function saveExport(payload: StoredExport) {
 if (typeof window === "undefined") return;
 
-const settings = getSettings();
-if (!settings.saveHistory) return;
-
 const current = getExports();
-const next = [item, ...current];
-localStorage.setItem(EXPORTS_KEY, JSON.stringify(next));
+localStorage.setItem(EXPORTS_KEY, JSON.stringify([payload, ...current]));
 }
 
-export function getExports(): StoredExportItem[] {
+export function getExports(): StoredExport[] {
 if (typeof window === "undefined") return [];
 
 const raw = localStorage.getItem(EXPORTS_KEY);
 if (!raw) return [];
 
 try {
-return JSON.parse(raw) as StoredExportItem[];
+return JSON.parse(raw) as StoredExport[];
 } catch {
 return [];
 }
 }
 
-export function saveSettings(settings: StoredSettings) {
-if (typeof window === "undefined") return;
-localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+export function getSettings() {
+if (typeof window === "undefined") {
+return { exportFormat: "CSV" };
 }
-
-export function getSettings(): StoredSettings {
-if (typeof window === "undefined") return DEFAULT_SETTINGS;
 
 const raw = localStorage.getItem(SETTINGS_KEY);
-if (!raw) return DEFAULT_SETTINGS;
+if (!raw) {
+return { exportFormat: "CSV" };
+}
 
 try {
-return {
-...DEFAULT_SETTINGS,
-...(JSON.parse(raw) as Partial<StoredSettings>),
-};
+return JSON.parse(raw) as { exportFormat: string };
 } catch {
-return DEFAULT_SETTINGS;
+return { exportFormat: "CSV" };
 }
 }
 
-export function getDefaultSettings(): StoredSettings {
-return DEFAULT_SETTINGS;
+export function saveSettings(settings: { exportFormat: string }) {
+if (typeof window === "undefined") return;
+localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }

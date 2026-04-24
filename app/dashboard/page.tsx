@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
+import ExcelJS from "exceljs";
 import TopNav from "../components/TopNav";
 import ProtectedPage from "../components/ProtectedPage";
 import { getSession, type RevoraPlan } from "../lib/revora-auth";
@@ -154,7 +155,7 @@ const [isAnalyzing, setIsAnalyzing] = useState(false);
 const [enrichedLeads, setEnrichedLeads] = useState<EnrichedLead[]>([]);
 const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
 const [searchTerm, setSearchTerm] = useState("");
-const [exportFormat, setExportFormat] = useState("CSV");
+const [exportFormat, setExportFormat] = useState("XLSX");
 
 const [sessionEmail, setSessionEmail] = useState("");
 const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
@@ -174,7 +175,7 @@ total: 0,
 
 useEffect(() => {
 const settings = getSettings();
-setExportFormat(settings.exportFormat);
+setExportFormat(settings.exportFormat || "XLSX");
 
 const session = getSession();
 
@@ -543,19 +544,19 @@ total: 0,
 }
 }
 
-function buildEnrichedCsv() {
-if (csvPreview.headers.length === 0 || enrichedLeads.length === 0) {
-return "";
+async function downloadEnrichedCsv() {
+if (enrichedLeads.length === 0 || csvPreview.headers.length === 0) {
+setMessage("Aucun lead enrichi à exporter.");
+return;
 }
 
-const cleanForCsv = (
-value: string | number | string[] | null | undefined
-) => {
-const normalized = Array.isArray(value) ? value.join(" | ") : String(value ?? "");
-return normalized.replace(/\r?\n|\r/g, " | ").replace(/\s+/g, " ").trim();
-};
+try {
+setMessage("Préparation du fichier Excel...");
 
-const enrichedHeaders = [
+const workbook = new ExcelJS.Workbook();
+const worksheet = workbook.addWorksheet("REVORA Analyse");
+
+const headers = [
 ...csvPreview.headers,
 "lead_score",
 "priority",
@@ -589,77 +590,178 @@ const enrichedHeaders = [
 "handoff_note",
 ];
 
-const enrichedRows = enrichedLeads.map((lead) => [
-...csvPreview.headers.map((_, index) =>
-cleanForCsv(lead.originalRow[index] ?? "")
-),
-cleanForCsv(lead.leadScore),
-cleanForCsv(lead.priority),
-cleanForCsv(lead.confidenceLevel),
-cleanForCsv(lead.analysisDepth),
-cleanForCsv(lead.fitIcpScore),
-cleanForCsv(lead.roleRelevanceScore),
-cleanForCsv(lead.dataQualityScore),
-cleanForCsv(lead.needRelevanceScore),
-cleanForCsv(lead.actionabilityScore),
-cleanForCsv(lead.fitReason),
-cleanForCsv(lead.whyNow),
-cleanForCsv(lead.probableBusinessPains),
-cleanForCsv(lead.detectedOpportunities),
-cleanForCsv(lead.bestOutreachChannel),
-cleanForCsv(lead.channelReason),
-cleanForCsv(lead.emailIdea),
-cleanForCsv(lead.linkedinIdea),
-cleanForCsv(lead.callOpener),
-cleanForCsv(lead.nextBestAction),
-cleanForCsv(lead.probableObjection),
-cleanForCsv(lead.objectionHandling),
-cleanForCsv(lead.opportunityLevel),
-cleanForCsv(lead.dealPotential),
-cleanForCsv(lead.painClarity),
-cleanForCsv(lead.urgencyLevel),
-cleanForCsv(lead.salesReadiness),
-cleanForCsv(lead.discoveryFocus),
-cleanForCsv(lead.questionsToAsk),
-cleanForCsv(lead.valueHypothesis),
-cleanForCsv(lead.handoffNote),
+const clean = (value: string | number | string[] | null | undefined) => {
+if (Array.isArray(value)) return value.join(" | ");
+return String(value ?? "");
+};
+
+worksheet.addRow(headers);
+
+enrichedLeads.forEach((lead) => {
+worksheet.addRow([
+...csvPreview.headers.map((_, index) => clean(lead.originalRow[index] ?? "")),
+clean(lead.leadScore),
+clean(lead.priority),
+clean(lead.confidenceLevel),
+clean(lead.analysisDepth),
+clean(lead.fitIcpScore),
+clean(lead.roleRelevanceScore),
+clean(lead.dataQualityScore),
+clean(lead.needRelevanceScore),
+clean(lead.actionabilityScore),
+clean(lead.fitReason),
+clean(lead.whyNow),
+clean(lead.probableBusinessPains),
+clean(lead.detectedOpportunities),
+clean(lead.bestOutreachChannel),
+clean(lead.channelReason),
+clean(lead.emailIdea),
+clean(lead.linkedinIdea),
+clean(lead.callOpener),
+clean(lead.nextBestAction),
+clean(lead.probableObjection),
+clean(lead.objectionHandling),
+clean(lead.opportunityLevel),
+clean(lead.dealPotential),
+clean(lead.painClarity),
+clean(lead.urgencyLevel),
+clean(lead.salesReadiness),
+clean(lead.discoveryFocus),
+clean(lead.questionsToAsk),
+clean(lead.valueHypothesis),
+clean(lead.handoffNote),
 ]);
+});
 
-return Papa.unparse(
-{
-fields: enrichedHeaders,
-data: enrichedRows,
-},
-{
-delimiter: ";",
-newline: "\r\n",
-quotes: true,
+const headerRow = worksheet.getRow(1);
+headerRow.eachCell((cell) => {
+cell.font = {
+bold: true,
+color: { argb: "FFFFFFFF" },
+};
+cell.fill = {
+type: "pattern",
+pattern: "solid",
+fgColor: { argb: "FF0F172A" },
+};
+cell.alignment = {
+vertical: "middle",
+horizontal: "center",
+wrapText: true,
+};
+cell.border = {
+top: { style: "thin", color: { argb: "FF334155" } },
+left: { style: "thin", color: { argb: "FF334155" } },
+bottom: { style: "thin", color: { argb: "FF334155" } },
+right: { style: "thin", color: { argb: "FF334155" } },
+};
+});
+headerRow.height = 24;
+
+worksheet.views = [{ state: "frozen", ySplit: 1 }];
+
+worksheet.autoFilter = {
+from: { row: 1, column: 1 },
+to: { row: 1, column: headers.length },
+};
+
+const priorityColumnIndex = headers.indexOf("priority") + 1;
+const scoreColumnIndex = headers.indexOf("lead_score") + 1;
+
+for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+const row = worksheet.getRow(rowNumber);
+const priority = String(row.getCell(priorityColumnIndex).value ?? "");
+
+let fillColor = "FFFFFFFF";
+let textColor = "FF0F172A";
+
+if (priority === "GO") {
+fillColor = "FFE8F5E9";
+textColor = "FF166534";
+} else if (priority === "MAYBE") {
+fillColor = "FFFFF7E6";
+textColor = "FF92400E";
+} else if (priority === "SKIP") {
+fillColor = "FFF3F4F6";
+textColor = "FF374151";
 }
-);
+
+row.eachCell((cell) => {
+cell.fill = {
+type: "pattern",
+pattern: "solid",
+fgColor: { argb: fillColor },
+};
+cell.font = {
+color: { argb: textColor },
+};
+cell.alignment = {
+vertical: "top",
+wrapText: true,
+};
+cell.border = {
+top: { style: "thin", color: { argb: "FFE5E7EB" } },
+left: { style: "thin", color: { argb: "FFE5E7EB" } },
+bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+right: { style: "thin", color: { argb: "FFE5E7EB" } },
+};
+});
+
+const scoreCell = row.getCell(scoreColumnIndex);
+scoreCell.font = {
+bold: true,
+color: { argb: textColor },
+};
 }
 
-function downloadEnrichedCsv() {
-const enrichedCsv = buildEnrichedCsv();
-
-if (!enrichedCsv) {
-setMessage("Aucun CSV enrichi à télécharger.");
-return;
+worksheet.columns = headers.map((header) => {
+if (header === "lead_score") return { width: 12 };
+if (header === "priority") return { width: 12 };
+if (header === "confidence_level") return { width: 18 };
+if (header === "analysis_depth") return { width: 16 };
+if (header.includes("score")) return { width: 14 };
+if (
+[
+"fit_reason",
+"why_now",
+"channel_reason",
+"email_idea",
+"linkedin_idea",
+"call_opener",
+"probable_objection",
+"objection_handling",
+"discovery_focus",
+"value_hypothesis",
+"handoff_note",
+].includes(header)
+) {
+return { width: 28 };
 }
+if (
+[
+"probable_business_pains",
+"detected_opportunities",
+"questions_to_ask",
+].includes(header)
+) {
+return { width: 34 };
+}
+return { width: Math.max(14, Math.min(24, header.length + 4)) };
+});
 
-const blob = new Blob(["\uFEFF" + enrichedCsv], {
-type: "text/csv;charset=utf-8;",
+const buffer = await workbook.xlsx.writeBuffer();
+const blob = new Blob([buffer], {
+type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 });
 
 const url = URL.createObjectURL(blob);
 const link = document.createElement("a");
 const originalFileName =
 csvFile?.name?.replace(".csv", "") || "revora_leads";
-
-const finalFileName = `${originalFileName}_analyse_pro.csv`;
+const finalFileName = `${originalFileName}_analyse_pro.xlsx`;
 
 link.href = url;
 link.download = finalFileName;
-
 document.body.appendChild(link);
 link.click();
 document.body.removeChild(link);
@@ -667,12 +769,18 @@ URL.revokeObjectURL(url);
 
 saveExport({
 fileName: finalFileName,
-format: "CSV",
+format: "XLSX",
 status: "READY",
 createdAt: new Date().toLocaleString("fr-FR"),
 leadCount: enrichedLeads.length,
-type: "Analyse CSV pro",
+type: "Analyse Excel colorée",
 });
+
+setMessage("Export Excel coloré généré avec succès ✅");
+} catch (error) {
+console.error("export excel error:", error);
+setMessage("Impossible de générer le fichier Excel.");
+}
 }
 
 function getPriorityClasses(priority: Priority) {
@@ -903,7 +1011,7 @@ type="button"
 onClick={downloadEnrichedCsv}
 className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 transition hover:bg-slate-50"
 >
-Télécharger
+Télécharger Excel
 </button>
 )}
 </div>
