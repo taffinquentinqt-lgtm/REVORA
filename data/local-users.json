@@ -40,5 +40,12 @@
     "plan": "starter",
     "monthlyLimit": 500,
     "isUnlimited": false
+  },
+  {
+    "email": "democassandre@revora.test",
+    "password": "demotest123",
+    "plan": "starter",
+    "monthlyLimit": 500,
+    "isUnlimited": false
   }
 ]
