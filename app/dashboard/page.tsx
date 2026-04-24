@@ -30,21 +30,32 @@ type ActiveFilter = "ALL" | Priority;
 type EnrichedLead = {
 originalRow: string[];
 leadScore: number;
-priority: Priority;
+priority: "GO" | "MAYBE" | "SKIP";
+
+confidenceLevel: string;
+analysisDepth: string;
+
+fitIcpScore: number;
+roleRelevanceScore: number;
+dataQualityScore: number;
+needRelevanceScore: number;
+actionabilityScore: number;
+
 fitReason: string;
 whyNow: string;
-probableBusinessPains: string;
-detectedOpportunities: string;
+probableBusinessPains: string[];
+detectedOpportunities: string[];
+
 bestOutreachChannel: string;
 channelReason: string;
 emailIdea: string;
 linkedinIdea: string;
 callOpener: string;
 nextBestAction: string;
-effortLevel: string;
-confidenceLevel: string;
+
 probableObjection: string;
 objectionHandling: string;
+
 opportunityLevel: string;
 dealPotential: string;
 painClarity: string;
@@ -53,7 +64,6 @@ salesReadiness: string;
 discoveryFocus: string;
 questionsToAsk: string[];
 valueHypothesis: string;
-demoAngle: string;
 handoffNote: string;
 };
 
@@ -221,7 +231,8 @@ return Math.round(total / enrichedLeads.length);
 const filteredLeads = useMemo(() => {
 const normalizedSearch = normalizeForSearch(searchTerm);
 
-return enrichedLeads.filter((lead) => {
+return enrichedLeads
+.filter((lead) => {
 const matchesPriority =
 activeFilter === "ALL" ? true : lead.priority === activeFilter;
 
@@ -233,8 +244,8 @@ const haystack = normalizeForSearch(
 ...lead.originalRow,
 lead.fitReason,
 lead.whyNow,
-lead.probableBusinessPains,
-lead.detectedOpportunities,
+lead.probableBusinessPains.join(" "),
+lead.detectedOpportunities.join(" "),
 lead.bestOutreachChannel,
 lead.channelReason,
 lead.emailIdea,
@@ -251,13 +262,15 @@ lead.salesReadiness,
 lead.discoveryFocus,
 lead.questionsToAsk.join(" "),
 lead.valueHypothesis,
-lead.demoAngle,
 lead.handoffNote,
+lead.confidenceLevel,
+lead.analysisDepth,
 ].join(" ")
 );
 
 return haystack.includes(normalizedSearch);
-});
+})
+.sort((a, b) => b.leadScore - a.leadScore);
 }, [enrichedLeads, activeFilter, searchTerm]);
 
 function normalizeCell(value: unknown): string {
@@ -318,15 +331,28 @@ setMessage("");
 const text = await file.text();
 const parsedCsv = parseCsvText(text);
 
-setCsvFile(file);
-setCsvPreview(parsedCsv);
-setEnrichedLeads([]);
-
 if (parsedCsv.headers.length === 0) {
+setCsvFile(null);
+setCsvPreview({ headers: [], rows: [] });
+setEnrichedLeads([]);
 setMessage("Le fichier CSV est vide ou illisible.");
 return;
 }
 
+if (parsedCsv.rows.length > 50) {
+setCsvFile(null);
+setCsvPreview({ headers: [], rows: [] });
+setEnrichedLeads([]);
+setMessage(
+`Votre fichier contient ${parsedCsv.rows.length} leads. La bêta REVORA accepte actuellement 50 leads maximum par fichier.`
+);
+event.target.value = "";
+return;
+}
+
+setCsvFile(file);
+setCsvPreview(parsedCsv);
+setEnrichedLeads([]);
 setMessage(
 `CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s).`
 );
@@ -422,7 +448,13 @@ rows: batchRows,
 const data = await response.json();
 
 if (!response.ok) {
-throw new Error(data.error || "Erreur pendant l’analyse du CSV.");
+console.error("analyze-csv response error:", data);
+throw new Error(
+data.error ||
+data.raw ||
+JSON.stringify(data) ||
+"Erreur pendant l’analyse du CSV."
+);
 }
 
 const batchResults: EnrichedLead[] = data.results.map(
@@ -430,31 +462,45 @@ const batchResults: EnrichedLead[] = data.results.map(
 originalRow: batchRows[index] ?? [],
 leadScore: Number(item.lead_score) || 0,
 priority: item.priority || "MAYBE",
+
+confidenceLevel: item.confidence_level || "medium",
+analysisDepth: item.analysis_depth || "basic",
+
+fitIcpScore: Number(item.fit_icp_score) || 0,
+roleRelevanceScore: Number(item.role_relevance_score) || 0,
+dataQualityScore: Number(item.data_quality_score) || 0,
+needRelevanceScore: Number(item.need_relevance_score) || 0,
+actionabilityScore: Number(item.actionability_score) || 0,
+
 fitReason: item.fit_reason || "",
 whyNow: item.why_now || "",
-probableBusinessPains: item.probable_business_pains || "",
-detectedOpportunities: item.detected_opportunities || "",
+probableBusinessPains: Array.isArray(item.probable_business_pains)
+? item.probable_business_pains
+: [],
+detectedOpportunities: Array.isArray(item.detected_opportunities)
+? item.detected_opportunities
+: [],
+
 bestOutreachChannel: item.best_outreach_channel || "",
 channelReason: item.channel_reason || "",
 emailIdea: item.email_idea || "",
 linkedinIdea: item.linkedin_idea || "",
 callOpener: item.call_opener || "",
 nextBestAction: item.next_best_action || "",
-effortLevel: item.effort_level || "",
-confidenceLevel: item.confidence_level || "",
+
 probableObjection: item.probable_objection || "",
 objectionHandling: item.objection_handling || "",
-opportunityLevel: item.opportunity_level || "",
-dealPotential: item.deal_potential || "",
-painClarity: item.pain_clarity || "",
-urgencyLevel: item.urgency_level || "",
-salesReadiness: item.sales_readiness || "",
+
+opportunityLevel: item.opportunity_level || "medium",
+dealPotential: item.deal_potential || "medium",
+painClarity: item.pain_clarity || "medium",
+urgencyLevel: item.urgency_level || "medium",
+salesReadiness: item.sales_readiness || "worth_testing",
 discoveryFocus: item.discovery_focus || "",
 questionsToAsk: Array.isArray(item.questions_to_ask)
 ? item.questions_to_ask
 : [],
 valueHypothesis: item.value_hypothesis || "",
-demoAngle: item.demo_angle || "",
 handoffNote: item.handoff_note || "",
 })
 );
@@ -486,8 +532,8 @@ setMessage(
 `Analyse CSV terminée ✅ ${allResults.length} lead(s) enrichi(s).`
 );
 } catch (error: any) {
-console.error(error);
-setMessage(error.message || "Impossible d’analyser le CSV.");
+console.error("dashboard analyze error:", error);
+setMessage(error?.message || "Impossible d’analyser le CSV.");
 } finally {
 setIsAnalyzing(false);
 setAnalysisProgress({
@@ -502,7 +548,9 @@ if (csvPreview.headers.length === 0 || enrichedLeads.length === 0) {
 return "";
 }
 
-const cleanForCsv = (value: string | number | string[] | null | undefined) => {
+const cleanForCsv = (
+value: string | number | string[] | null | undefined
+) => {
 const normalized = Array.isArray(value) ? value.join(" | ") : String(value ?? "");
 return normalized.replace(/\r?\n|\r/g, " | ").replace(/\s+/g, " ").trim();
 };
@@ -511,6 +559,13 @@ const enrichedHeaders = [
 ...csvPreview.headers,
 "lead_score",
 "priority",
+"confidence_level",
+"analysis_depth",
+"fit_icp_score",
+"role_relevance_score",
+"data_quality_score",
+"need_relevance_score",
+"actionability_score",
 "fit_reason",
 "why_now",
 "probable_business_pains",
@@ -521,8 +576,6 @@ const enrichedHeaders = [
 "linkedin_idea",
 "call_opener",
 "next_best_action",
-"effort_level",
-"confidence_level",
 "probable_objection",
 "objection_handling",
 "opportunity_level",
@@ -533,7 +586,6 @@ const enrichedHeaders = [
 "discovery_focus",
 "questions_to_ask",
 "value_hypothesis",
-"demo_angle",
 "handoff_note",
 ];
 
@@ -543,6 +595,13 @@ cleanForCsv(lead.originalRow[index] ?? "")
 ),
 cleanForCsv(lead.leadScore),
 cleanForCsv(lead.priority),
+cleanForCsv(lead.confidenceLevel),
+cleanForCsv(lead.analysisDepth),
+cleanForCsv(lead.fitIcpScore),
+cleanForCsv(lead.roleRelevanceScore),
+cleanForCsv(lead.dataQualityScore),
+cleanForCsv(lead.needRelevanceScore),
+cleanForCsv(lead.actionabilityScore),
 cleanForCsv(lead.fitReason),
 cleanForCsv(lead.whyNow),
 cleanForCsv(lead.probableBusinessPains),
@@ -553,8 +612,6 @@ cleanForCsv(lead.emailIdea),
 cleanForCsv(lead.linkedinIdea),
 cleanForCsv(lead.callOpener),
 cleanForCsv(lead.nextBestAction),
-cleanForCsv(lead.effortLevel),
-cleanForCsv(lead.confidenceLevel),
 cleanForCsv(lead.probableObjection),
 cleanForCsv(lead.objectionHandling),
 cleanForCsv(lead.opportunityLevel),
@@ -565,7 +622,6 @@ cleanForCsv(lead.salesReadiness),
 cleanForCsv(lead.discoveryFocus),
 cleanForCsv(lead.questionsToAsk),
 cleanForCsv(lead.valueHypothesis),
-cleanForCsv(lead.demoAngle),
 cleanForCsv(lead.handoffNote),
 ]);
 
@@ -661,13 +717,13 @@ Sales intelligence
 Analyse CSV
 <span className="bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
 {" "}
-version hybride
+version forte
 </span>
 </h1>
 
 <p className="mt-5 max-w-2xl text-base leading-8 text-white/70">
-Priorise tes leads, prépare l’outbound et facilite le handoff
-vers un AE ou un ingénieur commercial.
+Utilise ton profil d’analyse enrichi pour scorer, prioriser et
+préparer les meilleures actions commerciales.
 </p>
 
 <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -705,7 +761,7 @@ Plan actif
 <div className="mb-6">
 <p className="text-sm font-medium text-blue-600">Analyse CSV</p>
 <h2 className="mt-1 text-2xl font-semibold">
-Lance l’analyse hybride
+Lance l’analyse forte
 </h2>
 </div>
 
@@ -874,7 +930,7 @@ Analyse en cours... {analysisProgress.current} / {analysisProgress.total} leads 
 <div>
 <p className="text-sm text-cyan-300">Résultats enrichis</p>
 <h2 className="mt-1 text-2xl font-semibold text-white">
-Analyse hybride REVORA
+Analyse forte REVORA
 </h2>
 </div>
 
@@ -952,6 +1008,21 @@ className="rounded-2xl border border-white/10 bg-white/5 p-5"
 <p className="mt-2 text-sm text-white/60">
 {lead.fitReason}
 </p>
+
+<div className="mt-3 flex flex-wrap gap-2">
+<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+Confiance : {lead.confidenceLevel}
+</span>
+<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+Analyse : {lead.analysisDepth}
+</span>
+<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+Opportunity : {lead.opportunityLevel}
+</span>
+<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+Readiness : {lead.salesReadiness}
+</span>
+</div>
 </div>
 
 <div className="flex items-center gap-3">
@@ -968,7 +1039,33 @@ lead.priority
 </div>
 </div>
 
-<div className="grid gap-4 md:grid-cols-2">
+<div className="mt-4 grid gap-4 md:grid-cols-2">
+<div className="rounded-xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Scores détaillés
+</p>
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+<li>Fit ICP : {lead.fitIcpScore}/25</li>
+<li>Rôle : {lead.roleRelevanceScore}/20</li>
+<li>Qualité data : {lead.dataQualityScore}/15</li>
+<li>Besoin : {lead.needRelevanceScore}/20</li>
+<li>Actionnabilité : {lead.actionabilityScore}/20</li>
+</ul>
+</div>
+
+<div className="rounded-xl border border-white/10 bg-white/5 p-4">
+<p className="text-xs uppercase tracking-wider text-cyan-300">
+Lecture senior
+</p>
+<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
+<li>Deal potential : {lead.dealPotential}</li>
+<li>Pain clarity : {lead.painClarity}</li>
+<li>Urgency : {lead.urgencyLevel}</li>
+</ul>
+</div>
+</div>
+
+<div className="mt-4 grid gap-4 md:grid-cols-2">
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
 <p className="text-xs uppercase tracking-wider text-cyan-300">
 Why now
@@ -995,7 +1092,7 @@ Canal recommandé
 Pains
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
-{lead.probableBusinessPains}
+{lead.probableBusinessPains.join(" • ")}
 </p>
 </div>
 
@@ -1004,7 +1101,7 @@ Pains
 Opportunities
 </p>
 <p className="mt-2 text-sm leading-7 text-white/80">
-{lead.detectedOpportunities}
+{lead.detectedOpportunities.join(" • ")}
 </p>
 </div>
 
@@ -1061,53 +1158,6 @@ Objection handling
 {lead.objectionHandling}
 </p>
 </div>
-</div>
-
-<div className="mt-4 grid gap-4 md:grid-cols-2">
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Opportunity level
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.opportunityLevel}
-</p>
-</div>
-
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Deal potential
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.dealPotential}
-</p>
-</div>
-
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Pain clarity
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.painClarity}
-</p>
-</div>
-
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Urgency level
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.urgencyLevel}
-</p>
-</div>
-
-<div className="rounded-xl border border-white/10 bg-white/5 p-4 md:col-span-2">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Sales readiness
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.salesReadiness}
-</p>
-</div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:col-span-2">
 <p className="text-xs uppercase tracking-wider text-cyan-300">
@@ -1138,16 +1188,7 @@ Value hypothesis
 </p>
 </div>
 
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Demo angle
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.demoAngle}
-</p>
-</div>
-
-<div className="rounded-xl border border-white/10 bg-white/5 p-4">
+<div className="rounded-xl border border-white/10 bg-white/5 p-4 md:col-span-2">
 <p className="text-xs uppercase tracking-wider text-cyan-300">
 Handoff note
 </p>
@@ -1159,10 +1200,10 @@ Handoff note
 
 <div className="mt-4 flex flex-wrap gap-2">
 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Effort : {lead.effortLevel}
+Opportunity : {lead.opportunityLevel}
 </span>
 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Confiance : {lead.confidenceLevel}
+Readiness : {lead.salesReadiness}
 </span>
 </div>
 </div>
