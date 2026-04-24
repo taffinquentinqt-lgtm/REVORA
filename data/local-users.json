@@ -51,8 +51,8 @@
   {
     "email": "betatestcassandre@revora.test",
     "password": "RocketTest123",
-    "plan": "starter",
-    "monthlyLimit": 500,
+    "plan": "demo",
+    "monthlyLimit": 200,
     "isUnlimited": false
   }
 ]
