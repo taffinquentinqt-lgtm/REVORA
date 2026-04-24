@@ -33,5 +33,12 @@
     "plan": "unlimited",
     "monthlyLimit": null,
     "isUnlimited": true
+  },
+  {
+    "email": "democassandre",
+    "password": "demotest123",
+    "plan": "starter",
+    "monthlyLimit": 500,
+    "isUnlimited": false
   }
 ]
