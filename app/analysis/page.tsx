@@ -1,265 +1,460 @@
-"use client";
+import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
-import { useEffect, useMemo, useState } from "react";
-import TopNav from "../components/TopNav";
-import ProtectedPage from "../components/ProtectedPage";
-import {
-getAnalysis,
-type Priority,
-type StoredLead,
-} from "../lib/revora-storage";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-type ActiveFilter = "ALL" | Priority;
-
-export default function AnalysisPage() {
-const [headers, setHeaders] = useState<string[]>([]);
-const [leads, setLeads] = useState<StoredLead[]>([]);
-const [fileName, setFileName] = useState("");
-const [updatedAt, setUpdatedAt] = useState("");
-const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
-const [searchTerm, setSearchTerm] = useState("");
-
-useEffect(() => {
-const data = getAnalysis();
-
-if (!data) return;
-
-setHeaders(data.headers);
-setLeads(data.leads);
-setFileName(data.fileName);
-setUpdatedAt(data.updatedAt);
-}, []);
-
-const stats = useMemo(() => {
-const go = leads.filter((lead) => lead.priority === "GO").length;
-const maybe = leads.filter((lead) => lead.priority === "MAYBE").length;
-const skip = leads.filter((lead) => lead.priority === "SKIP").length;
-const average =
-leads.length > 0
-? Math.round(
-leads.reduce((sum, lead) => sum + lead.leadScore, 0) / leads.length
-)
-: 0;
-
-return { go, maybe, skip, average };
-}, [leads]);
-
-const filteredLeads = useMemo(() => {
-const normalized = searchTerm.toLowerCase().trim();
-
-return leads.filter((lead) => {
-const matchesFilter =
-activeFilter === "ALL" ? true : lead.priority === activeFilter;
-
-if (!matchesFilter) return false;
-if (!normalized) return true;
-
-const haystack = [
-...lead.originalRow,
-lead.fitReason,
-lead.whyNow,
-lead.probableBusinessPains,
-lead.detectedOpportunities,
-lead.bestOutreachChannel,
-lead.channelReason,
-lead.emailIdea,
-lead.linkedinIdea,
-lead.callOpener,
-lead.nextBestAction,
-]
-.join(" ")
-.toLowerCase();
-
-return haystack.includes(normalized);
+const client = new OpenAI({
+apiKey: process.env.MAMMOUTH_API_KEY,
+baseURL: "https://api.mammouth.ai/v1",
 });
-}, [leads, activeFilter, searchTerm]);
 
-function getPriorityClasses(priority: Priority) {
-if (priority === "GO") {
-return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30";
-}
+type GeneratedProfile = {
+productSummary: string;
+problemSummary: string;
+valueProposition: string;
+icpSummary: string;
+targetFunctions: string[];
+buyingSignals: string[];
+businessPains: string[];
+recommendedAngles: string[];
+priorityLogic: string;
+};
 
-if (priority === "MAYBE") {
-return "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/30";
-}
+export async function POST(req: Request) {
+try {
+const body = await req.json();
 
-return "bg-slate-500/15 text-slate-300 ring-1 ring-white/10";
-}
+const {
+brief,
+generatedProfile,
+headers,
+rows,
+}: {
+brief: {
+offerDescription: string;
+problemSolved: string;
+targetCompanyTypes: string;
+targetRoles: string;
+};
+generatedProfile: GeneratedProfile;
+headers: string[];
+rows: string[][];
+} = body;
 
-function getFilterButtonClasses(filter: ActiveFilter) {
-const isActive = activeFilter === filter;
-
-if (isActive) {
-return "border-cyan-400/50 bg-cyan-400/15 text-cyan-200";
-}
-
-return "border-white/10 bg-white/5 text-white/65 hover:bg-white/10";
-}
-
-return (
-<ProtectedPage>
-<main className="min-h-screen bg-slate-950 text-white">
-<TopNav />
-
-<div className="mx-auto max-w-[1600px] px-6 py-8">
-<section className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
-Analysis
-</p>
-
-<h1 className="mt-3 text-4xl font-semibold text-white">
-Analyse pipeline
-</h1>
-
-<p className="mt-4 max-w-3xl text-white/70">
-Cette page lit maintenant les vraies données enregistrées depuis le
-dashboard.
-</p>
-
-<div className="mt-6 grid gap-4 md:grid-cols-4">
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm text-white/50">Score moyen</p>
-<p className="mt-2 text-3xl font-semibold text-white">
-{stats.average}
-</p>
-</div>
-
-<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-<p className="text-sm text-emerald-300">GO</p>
-<p className="mt-2 text-3xl font-semibold text-white">
-{stats.go}
-</p>
-</div>
-
-<div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-5">
-<p className="text-sm text-amber-300">MAYBE</p>
-<p className="mt-2 text-3xl font-semibold text-white">
-{stats.maybe}
-</p>
-</div>
-
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-<p className="text-sm text-white/50">SKIP</p>
-<p className="mt-2 text-3xl font-semibold text-white">
-{stats.skip}
-</p>
-</div>
-</div>
-
-<div className="mt-6 text-sm text-white/50">
-Fichier source : {fileName || "Aucune analyse enregistrée"} <br />
-Dernière mise à jour : {updatedAt || "—"}
-</div>
-</section>
-
-<section className="mt-8 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-<div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-<input
-type="text"
-placeholder="Rechercher entreprise, contact, canal, angle..."
-value={searchTerm}
-onChange={(event) => setSearchTerm(event.target.value)}
-className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/35 lg:max-w-xl"
-/>
-
-<div className="flex flex-wrap gap-2">
-{(["ALL", "GO", "MAYBE", "SKIP"] as const).map((filter) => (
-<button
-key={filter}
-type="button"
-onClick={() => setActiveFilter(filter)}
-className={`rounded-full border px-4 py-2 text-sm font-medium transition ${getFilterButtonClasses(
-filter
-)}`}
->
-{filter}
-</button>
-))}
-</div>
-</div>
-
-{leads.length === 0 ? (
-<p className="text-white/60">
-Aucune analyse enregistrée. Lance d’abord une analyse depuis le
-dashboard.
-</p>
-) : (
-<>
-<div className="mb-4 text-sm text-white/55">
-{filteredLeads.length} résultat(s) affiché(s)
-</div>
-
-<div className="overflow-auto rounded-3xl border border-white/10">
-<table className="min-w-full border-collapse text-sm">
-<thead className="bg-white/10 text-white">
-<tr>
-{headers.map((header, index) => (
-<th
-key={`${header}-${index}`}
-className="px-4 py-3 text-left font-semibold"
->
-{header}
-</th>
-))}
-<th className="px-4 py-3 text-left font-semibold">Score</th>
-<th className="px-4 py-3 text-left font-semibold">Priorité</th>
-<th className="px-4 py-3 text-left font-semibold">Fit reason</th>
-<th className="px-4 py-3 text-left font-semibold">Why now</th>
-<th className="px-4 py-3 text-left font-semibold">Pains</th>
-<th className="px-4 py-3 text-left font-semibold">
-Opportunities
-</th>
-<th className="px-4 py-3 text-left font-semibold">
-Best channel
-</th>
-<th className="px-4 py-3 text-left font-semibold">
-Next best action
-</th>
-</tr>
-</thead>
-
-<tbody>
-{filteredLeads.map((lead, rowIndex) => (
-<tr
-key={rowIndex}
-className="border-b border-white/5 bg-white/[0.03] align-top text-white/80 odd:bg-white/[0.02]"
->
-{headers.map((_, cellIndex) => (
-<td key={cellIndex} className="px-4 py-3">
-{lead.originalRow[cellIndex] ?? ""}
-</td>
-))}
-
-<td className="px-4 py-3 font-semibold text-white">
-{lead.leadScore}
-</td>
-
-<td className="px-4 py-3">
-<span
-className={`rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClasses(
-lead.priority
-)}`}
->
-{lead.priority}
-</span>
-</td>
-
-<td className="px-4 py-3">{lead.fitReason}</td>
-<td className="px-4 py-3">{lead.whyNow}</td>
-<td className="px-4 py-3">{lead.probableBusinessPains}</td>
-<td className="px-4 py-3">{lead.detectedOpportunities}</td>
-<td className="px-4 py-3">{lead.bestOutreachChannel}</td>
-<td className="px-4 py-3">{lead.nextBestAction}</td>
-</tr>
-))}
-</tbody>
-</table>
-</div>
-</>
-)}
-</section>
-</div>
-</main>
-</ProtectedPage>
+if (!process.env.MAMMOUTH_API_KEY) {
+return NextResponse.json(
+{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
+{ status: 500 }
 );
+}
+
+if (!brief || !generatedProfile || !headers || !rows) {
+return NextResponse.json(
+{ error: "Données incomplètes pour l’analyse CSV." },
+{ status: 400 }
+);
+}
+
+if (!Array.isArray(headers) || !Array.isArray(rows)) {
+return NextResponse.json(
+{ error: "Format CSV invalide." },
+{ status: 400 }
+);
+}
+
+if (rows.length === 0) {
+return NextResponse.json(
+{ error: "Aucune ligne à analyser." },
+{ status: 400 }
+);
+}
+
+const csvData = rows.map((row, rowIndex) => {
+const obj: Record<string, string | number> = {
+__row_index: rowIndex,
+};
+
+headers.forEach((header, index) => {
+obj[header] = row[index] ?? "";
+});
+
+return obj;
+});
+
+const prompt = `
+Tu es SalesPilote, un agent IA expert en qualification, priorisation et préparation commerciale B2B.
+
+MISSION
+Tu aides une équipe sales à transformer un CSV de leads en décisions commerciales actionnables.
+
+OBJECTIF
+Pour chaque lead, tu dois aider à répondre à 6 questions :
+1. Ce lead mérite-t-il du temps commercial ?
+2. Pourquoi lui plutôt qu’un autre ?
+3. Pourquoi maintenant ou pas maintenant ?
+4. Quel angle commercial est le plus crédible ?
+5. Quel canal est le plus rentable ?
+6. Quelle action concrète faut-il lancer ensuite ?
+
+RÈGLE ABSOLUE
+- Ne jamais inventer une donnée absente
+- Ne jamais transformer une hypothèse en fait
+- Respecter strictement le brief client
+- Privilégier la qualité de décision commerciale à la quantité de texte
+- Rester crédible, utile et orienté action
+
+ENTRÉES
+
+BRIEF CLIENT
+- offer_description : ${brief.offerDescription}
+- problem_solved : ${brief.problemSolved}
+- target_company_types : ${brief.targetCompanyTypes}
+- target_roles : ${brief.targetRoles}
+
+PROFIL D’ANALYSE ENRICHI
+- productSummary : ${generatedProfile.productSummary}
+- problemSummary : ${generatedProfile.problemSummary}
+- valueProposition : ${generatedProfile.valueProposition}
+- icpSummary : ${generatedProfile.icpSummary}
+- targetFunctions : ${generatedProfile.targetFunctions.join(", ")}
+- buyingSignals : ${generatedProfile.buyingSignals.join(", ")}
+- businessPains : ${generatedProfile.businessPains.join(", ")}
+- recommendedAngles : ${generatedProfile.recommendedAngles.join(", ")}
+- priorityLogic : ${generatedProfile.priorityLogic}
+
+LOGIQUE D’ANALYSE
+Tu dois analyser chaque lead selon 5 axes :
+
+1. FIT ICP /25
+Évalue :
+- cohérence avec la cible donnée
+- cohérence avec le secteur si visible
+- cohérence avec le type d’entreprise ciblé
+- cohérence avec le brief client
+
+2. ROLE RELEVANCE /20
+Évalue :
+- pertinence du poste ou rôle
+- proximité avec la décision ou l’usage
+- compatibilité avec les profils visés
+
+3. DATA QUALITY /15
+Évalue :
+- qualité des données disponibles
+- présence d’un canal exploitable
+- lisibilité minimale du lead
+
+4. NEED RELEVANCE /20
+Évalue :
+- plausibilité que le problème résolu existe chez ce lead
+- crédibilité de la douleur business
+- légitimité de l’angle commercial
+
+5. ACTIONABILITY /20
+Évalue :
+- capacité à agir rapidement
+- capacité à formuler une approche crédible
+- rentabilité probable de l’effort outbound
+
+SCORE FINAL
+Le score final = somme des 5 sous-scores.
+Le score final est sur 100.
+
+PRIORITÉS
+GO
+- score généralement élevé
+- fit crédible
+- canal exploitable
+- angle défendable
+- effort rentable
+
+MAYBE
+- potentiel réel mais incomplet
+- données partielles
+- besoin plausible mais pas assez clair
+- mérite un test léger ou un enrichissement
+
+SKIP
+- faible fit
+- besoin peu crédible
+- rôle trop éloigné
+- données trop faibles
+- effort peu rentable
+
+RÈGLES DE VETO
+Un lead ne peut pas être GO si :
+- aucun canal exploitable n’est disponible
+- le rôle est manifestement hors cible
+- les données sont trop faibles pour agir
+- le fit avec la cible est trop faible
+
+CONFIANCE
+confidence_level :
+- high = données suffisantes + fit lisible + angle crédible
+- medium = logique plausible mais incomplète
+- low = analyse fragile, trop d’hypothèses ou données faibles
+
+PROFONDEUR D’ANALYSE
+analysis_depth :
+- basic = score + décision + action simple
+- advanced = analyse plus poussée avec why_now, pains, opportunities et exécution commerciale
+
+RÈGLES DE SORTIE
+- Réponses courtes
+- Pas de paragraphes longs
+- fit_reason = 1 phrase
+- why_now = 1 phrase
+- channel_reason = 1 phrase
+- probable_business_pains = 1 à 2 points maximum
+- detected_opportunities = 1 à 2 points maximum
+- email_idea = court
+- linkedin_idea = court
+- call_opener = 1 phrase
+- objection_handling = court
+- discovery_focus = 1 phrase
+- value_hypothesis = 1 phrase
+- handoff_note = court
+
+CANAUX AUTORISÉS
+best_outreach_channel :
+- Email
+- LinkedIn
+- Call
+- Multicanal
+- Enrichissement d'abord
+- Nurture léger
+
+LOGIQUE CANAL
+- Email si email dispo + angle crédible
+- LinkedIn si email faible/absent mais contact identifiable
+- Call si téléphone dispo + priorité forte + angle simple
+- Multicanal si lead fort + plusieurs canaux
+- Enrichissement d'abord si lead potentiellement intéressant mais trop faible en données
+- Nurture léger si pas absurde mais pas assez fort pour un effort immédiat
+
+ACTIONS AUTORISÉES
+next_best_action :
+- envoyer un email personnalisé
+- tenter un message LinkedIn
+- appeler directement
+- lancer une séquence multicanale
+- enrichir avant contact
+- garder en watchlist
+- sortir du pipe court terme
+
+OBJECTIONS
+probable_objection doit être réaliste et liée au contexte probable :
+- pas prioritaire maintenant
+- déjà un outil ou un process
+- pas la bonne personne
+- trop tôt
+- pas assez de volume
+- besoin peu clair
+
+objection_handling doit être :
+- courte
+- crédible
+- calme
+- non agressive
+- ouverte
+
+COUCHE HYBRIDE BIZDEV / AE
+Ajoute aussi :
+- opportunity_level : low | medium | high
+- deal_potential : low | medium | high
+- pain_clarity : low | medium | high
+- urgency_level : low | medium | high
+- sales_readiness : not_ready | worth_testing | ready_for_meeting
+- discovery_focus : 1 phrase
+- questions_to_ask : 2 à 4 questions courtes
+- value_hypothesis : 1 phrase
+- handoff_note : résumé court utile pour AE / ingénieur commercial
+
+RÈGLE CRITIQUE
+Tu dois analyser TOUTES les lignes fournies.
+Il doit y avoir exactement 1 résultat par lead, dans le même ordre.
+
+FORMAT DE SORTIE OBLIGATOIRE
+Retourne uniquement un JSON valide avec cette structure :
+
+{
+"results": [
+{
+"row_index": 0,
+"lead_score": 0,
+"priority": "GO",
+"confidence_level": "high",
+"analysis_depth": "advanced",
+
+"fit_icp_score": 0,
+"role_relevance_score": 0,
+"data_quality_score": 0,
+"need_relevance_score": 0,
+"actionability_score": 0,
+
+"fit_reason": "string",
+"why_now": "string",
+"probable_business_pains": ["string", "string"],
+"detected_opportunities": ["string", "string"],
+
+"best_outreach_channel": "Email",
+"channel_reason": "string",
+"email_idea": "string",
+"linkedin_idea": "string",
+"call_opener": "string",
+"next_best_action": "envoyer un email personnalisé",
+
+"probable_objection": "string",
+"objection_handling": "string",
+
+"opportunity_level": "medium",
+"deal_potential": "medium",
+"pain_clarity": "medium",
+"urgency_level": "medium",
+"sales_readiness": "worth_testing",
+"discovery_focus": "string",
+"questions_to_ask": ["string", "string"],
+"value_hypothesis": "string",
+"handoff_note": "string"
+}
+]
+}
+
+VÉRIFICATION FINALE
+Avant de répondre, vérifie :
+- que le score est cohérent avec les sous-scores
+- que la priorité est cohérente avec le score ET les règles de veto
+- que les douleurs restent plausibles
+- que le canal est logique
+- que la next best action est concrète
+- que la confiance est honnête
+- qu’aucune donnée absente n’est inventée
+- que la sortie est bien du JSON valide uniquement
+
+LEADS À ANALYSER
+${JSON.stringify(csvData, null, 2)}
+`;
+
+const response = await client.chat.completions.create({
+model: "gpt-4.1-mini",
+messages: [
+{
+role: "system",
+content:
+"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
+},
+{
+role: "user",
+content: prompt,
+},
+],
+temperature: 0.1,
+});
+
+const text = response.choices?.[0]?.message?.content?.trim();
+
+if (!text) {
+return NextResponse.json(
+{ error: "Réponse IA vide." },
+{ status: 500 }
+);
+}
+
+let parsed: any;
+try {
+parsed = JSON.parse(text);
+} catch {
+return NextResponse.json(
+{
+error: "La réponse IA n’est pas un JSON valide.",
+raw: text,
+},
+{ status: 500 }
+);
+}
+
+if (!parsed.results || !Array.isArray(parsed.results)) {
+return NextResponse.json(
+{
+error: "Format de réponse IA invalide : results manquant ou invalide.",
+raw: parsed,
+},
+{ status: 500 }
+);
+}
+
+if (parsed.results.length !== rows.length) {
+return NextResponse.json(
+{
+error: `L'IA a retourné ${parsed.results.length} résultats pour ${rows.length} leads.`,
+raw: parsed,
+},
+{ status: 500 }
+);
+}
+
+const normalizedResults = [...parsed.results]
+.sort((a, b) => Number(a.row_index) - Number(b.row_index))
+.map((item) => ({
+row_index: Number(item.row_index) || 0,
+lead_score: Number(item.lead_score) || 0,
+priority: item.priority || "MAYBE",
+confidence_level: item.confidence_level || "medium",
+analysis_depth: item.analysis_depth || "basic",
+
+fit_icp_score: Number(item.fit_icp_score) || 0,
+role_relevance_score: Number(item.role_relevance_score) || 0,
+data_quality_score: Number(item.data_quality_score) || 0,
+need_relevance_score: Number(item.need_relevance_score) || 0,
+actionability_score: Number(item.actionability_score) || 0,
+
+fit_reason: item.fit_reason || "",
+why_now: item.why_now || "",
+probable_business_pains: Array.isArray(item.probable_business_pains)
+? item.probable_business_pains
+: [],
+detected_opportunities: Array.isArray(item.detected_opportunities)
+? item.detected_opportunities
+: [],
+
+best_outreach_channel: item.best_outreach_channel || "",
+channel_reason: item.channel_reason || "",
+email_idea: item.email_idea || "",
+linkedin_idea: item.linkedin_idea || "",
+call_opener: item.call_opener || "",
+next_best_action: item.next_best_action || "",
+
+probable_objection: item.probable_objection || "",
+objection_handling: item.objection_handling || "",
+
+opportunity_level: item.opportunity_level || "medium",
+deal_potential: item.deal_potential || "medium",
+pain_clarity: item.pain_clarity || "medium",
+urgency_level: item.urgency_level || "medium",
+sales_readiness: item.sales_readiness || "worth_testing",
+discovery_focus: item.discovery_focus || "",
+questions_to_ask: Array.isArray(item.questions_to_ask)
+? item.questions_to_ask
+: [],
+value_hypothesis: item.value_hypothesis || "",
+handoff_note: item.handoff_note || "",
+}));
+
+return NextResponse.json({ results: normalizedResults });
+} catch (error: any) {
+console.error("analyze-csv error:", error);
+
+return NextResponse.json(
+{
+error:
+error?.message ||
+error?.error?.message ||
+error?.response?.data ||
+JSON.stringify(error) ||
+"Impossible d’analyser le CSV.",
+},
+{ status: 500 }
+);
+}
 }
