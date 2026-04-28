@@ -61,5 +61,12 @@
     "plan": "unlimited",
     "monthlyLimit": null,
     "isUnlimited": true
+  },
+  {
+    "email": "betatestmax@revora.test",
+    "password": "Maximebetatest643",
+    "plan": "unlimited",
+    "monthlyLimit": null,
+    "isUnlimited": true
   }
 ]
