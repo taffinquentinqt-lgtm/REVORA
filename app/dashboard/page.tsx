@@ -340,17 +340,6 @@ setMessage("Le fichier CSV est vide ou illisible.");
 return;
 }
 
-if (parsedCsv.rows.length > 50) {
-setCsvFile(null);
-setCsvPreview({ headers: [], rows: [] });
-setEnrichedLeads([]);
-setMessage(
-`Votre fichier contient ${parsedCsv.rows.length} leads. La bêta REVORA accepte actuellement 50 leads maximum par fichier.`
-);
-event.target.value = "";
-return;
-}
-
 setCsvFile(file);
 setCsvPreview(parsedCsv);
 setEnrichedLeads([]);
@@ -776,7 +765,7 @@ leadCount: enrichedLeads.length,
 type: "Analyse Excel colorée",
 });
 
-setMessage("Export Excel coloré généré avec succès ✅");
+setMessage("Export Excel généré avec succès ✅");
 } catch (error) {
 console.error("export excel error:", error);
 setMessage("Impossible de générer le fichier Excel.");
