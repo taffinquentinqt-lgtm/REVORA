@@ -2,15 +2,26 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 const client = new OpenAI({
-apiKey: process.env.MAMMOUTH_API_KEY,
-baseURL: "https://api.mammouth.ai/v1",
+apiKey: process.env.OPENAI_API_KEY,
 });
+
+type GeneratedProfile = {
+productSummary: string;
+problemSummary: string;
+valueProposition: string;
+icpSummary: string;
+targetFunctions: string[];
+buyingSignals: string[];
+businessPains: string[];
+recommendedAngles: string[];
+priorityLogic: string;
+};
 
 export async function POST(req: Request) {
 try {
-if (!process.env.MAMMOUTH_API_KEY) {
+if (!process.env.OPENAI_API_KEY) {
 return NextResponse.json(
-{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
+{ error: "OPENAI_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -68,23 +79,18 @@ Format obligatoire :
 }
 `;
 
-const response = await client.chat.completions.create({
-model: "gpt-4.1-mini",
-messages: [
-{
-role: "system",
-content:
-"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
-},
+const response = await client.responses.create({
+model: "gpt-5.5",
+input: [
 {
 role: "user",
-content: prompt,
+content: `Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.\n\n${prompt}`,
 },
 ],
-temperature: 0.2,
+reasoning: { effort: "medium" },
 });
 
-const text = response.choices?.[0]?.message?.content?.trim();
+const text = response.output_text?.trim();
 
 if (!text) {
 return NextResponse.json(
@@ -93,7 +99,7 @@ return NextResponse.json(
 );
 }
 
-let parsed: any;
+let parsed: GeneratedProfile;
 try {
 parsed = JSON.parse(text);
 } catch {
@@ -107,17 +113,15 @@ raw: text,
 }
 
 return NextResponse.json(parsed);
-} catch (error: any) {
+} catch (error: unknown) {
 console.error("generate-profile error:", error);
 
 return NextResponse.json(
 {
 error:
-error?.message ||
-error?.error?.message ||
-error?.response?.data ||
-JSON.stringify(error) ||
-"Impossible de générer le profil d’analyse.",
+error instanceof Error
+? error.message
+: "Impossible de générer le profil d’analyse avec OpenAI.",
 },
 { status: 500 }
 );

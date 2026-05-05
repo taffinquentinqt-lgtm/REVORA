@@ -5,8 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const client = new OpenAI({
-apiKey: process.env.MAMMOUTH_API_KEY,
-baseURL: "https://api.mammouth.ai/v1",
+apiKey: process.env.OPENAI_API_KEY,
 });
 
 type GeneratedProfile = {
@@ -42,9 +41,9 @@ headers: string[];
 rows: string[][];
 } = body;
 
-if (!process.env.MAMMOUTH_API_KEY) {
+if (!process.env.OPENAI_API_KEY) {
 return NextResponse.json(
-{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
+{ error: "OPENAI_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -230,23 +229,18 @@ Leads à analyser :
 ${JSON.stringify(csvData, null, 2)}
 `;
 
-const response = await client.chat.completions.create({
-model: "gpt-4.1-mini",
-messages: [
-{
-role: "system",
-content:
-"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
-},
+const response = await client.responses.create({
+model: "gpt-5.5",
+input: [
 {
 role: "user",
-content: prompt,
+content: `Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.\n\n${prompt}`,
 },
 ],
-temperature: 0.1,
+reasoning: { effort: "medium" },
 });
 
-const text = response.choices?.[0]?.message?.content?.trim();
+const text = response.output_text?.trim();
 
 if (!text) {
 return NextResponse.json(
@@ -255,7 +249,7 @@ return NextResponse.json(
 );
 }
 
-let parsed: any;
+let parsed: { results?: Array<Record<string, unknown>> };
 try {
 parsed = JSON.parse(text);
 } catch {
@@ -336,17 +330,15 @@ handoff_note: item.handoff_note || "",
 }));
 
 return NextResponse.json({ results: normalizedResults });
-} catch (error: any) {
-console.error("analyze-csv error:", error);
+} catch (error: unknown) {
+console.error("analyze error:", error);
 
 return NextResponse.json(
 {
 error:
-error?.message ||
-error?.error?.message ||
-error?.response?.data ||
-JSON.stringify(error) ||
-"Impossible d’analyser le CSV.",
+error instanceof Error
+? error.message
+: "Impossible d’analyser le CSV avec OpenAI.",
 },
 { status: 500 }
 );
