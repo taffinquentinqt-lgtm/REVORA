@@ -47,6 +47,9 @@ return NextResponse.json(
 { status: 500 }
 );
 }
+const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY ,
+});
 
 if (!brief || !generatedProfile || !headers || !rows) {
 return NextResponse.json(
