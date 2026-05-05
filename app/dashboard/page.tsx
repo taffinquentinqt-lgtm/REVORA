@@ -435,7 +435,16 @@ rows: batchRows,
 }),
 });
 
-const data = await response.json();
+const rawText = await response.text();
+
+let data: any;
+try {
+data = JSON.parse(rawText);
+} catch {
+throw new Error(
+`La route /api/analyze-csv ne renvoie pas du JSON. Réponse reçue : ${rawText.slice(0, 300)}`
+);
+}
 
 if (!response.ok) {
 console.error("analyze-csv response error:", data);
