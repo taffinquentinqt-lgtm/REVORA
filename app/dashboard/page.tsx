@@ -172,6 +172,10 @@ const [analysisProgress, setAnalysisProgress] = useState({
 current: 0,
 total: 0,
 });
+const [currentLeadPreview, setCurrentLeadPreview] = useState<{
+index: number;
+row: string[];
+} | null>(null);
 
 useEffect(() => {
 const settings = getSettings();
@@ -228,6 +232,23 @@ if (enrichedLeads.length === 0) return 0;
 const total = enrichedLeads.reduce((sum, lead) => sum + lead.leadScore, 0);
 return Math.round(total / enrichedLeads.length);
 }, [enrichedLeads]);
+
+const analysisPercent = useMemo(() => {
+if (analysisProgress.total <= 0) return 0;
+return Math.min(
+100,
+Math.round((analysisProgress.current / analysisProgress.total) * 100)
+);
+}, [analysisProgress.current, analysisProgress.total]);
+
+const currentLeadCells = useMemo(() => {
+if (!currentLeadPreview) return [];
+
+return csvPreview.headers.slice(0, 4).map((header, index) => ({
+header,
+value: currentLeadPreview.row[index] || "-",
+}));
+}, [csvPreview.headers, currentLeadPreview]);
 
 const filteredLeads = useMemo(() => {
 const normalizedSearch = normalizeForSearch(searchTerm);
@@ -396,18 +417,25 @@ try {
 setIsAnalyzing(true);
 setMessage("");
 setEnrichedLeads([]);
+setCurrentLeadPreview(null);
 setAnalysisProgress({
 current: 0,
 total: rowsToAnalyze.length,
 });
 
 const brief = getClientBrief();
-const allResults: EnrichedLead[] = [];
+const maxConcurrentBatches = 3;
+const batchResultsByIndex: EnrichedLead[][] = [];
+let nextBatchIndex = 0;
 
-for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+async function analyzeBatch(batchIndex: number) {
 const start = batchIndex * batchSize;
 const end = start + batchSize;
 const batchRows = rowsToAnalyze.slice(start, end);
+setCurrentLeadPreview({
+index: start + 1,
+row: batchRows[0] ?? [],
+});
 
 setMessage(
 `Analyse en cours... lot ${batchIndex + 1}/${totalBatches} (${Math.min(
@@ -456,7 +484,7 @@ JSON.stringify(data) ||
 );
 }
 
-const batchResults: EnrichedLead[] = data.results.map(
+return data.results.map(
 (item: any, index: number) => ({
 originalRow: batchRows[index] ?? [],
 leadScore: Number(item.lead_score) || 0,
@@ -503,16 +531,47 @@ valueHypothesis: item.value_hypothesis || "",
 handoffNote: item.handoff_note || "",
 })
 );
+}
 
-allResults.push(...batchResults);
+function publishCompletedResults() {
+const completedResults = batchResultsByIndex.flatMap((batch) => batch ?? []);
 
 setAnalysisProgress({
-current: allResults.length,
+current: completedResults.length,
 total: rowsToAnalyze.length,
 });
 
-setEnrichedLeads([...allResults]);
+setEnrichedLeads(completedResults);
+
+const nextIndex = completedResults.length + 1;
+setCurrentLeadPreview(
+nextIndex <= rowsToAnalyze.length
+? {
+index: nextIndex,
+row: rowsToAnalyze[nextIndex - 1] ?? [],
 }
+: null
+);
+}
+
+async function runBatchWorker() {
+while (nextBatchIndex < totalBatches) {
+const batchIndex = nextBatchIndex;
+nextBatchIndex += 1;
+
+batchResultsByIndex[batchIndex] = await analyzeBatch(batchIndex);
+publishCompletedResults();
+}
+}
+
+await Promise.all(
+Array.from(
+{ length: Math.min(maxConcurrentBatches, totalBatches) },
+() => runBatchWorker()
+)
+);
+
+const allResults = batchResultsByIndex.flatMap((batch) => batch ?? []);
 
 saveAnalysis({
 headers: csvPreview.headers,
@@ -530,11 +589,13 @@ saveMonthlyUsage(sessionEmail, newUsed);
 setMessage(
 `Analyse CSV terminée ✅ ${allResults.length} lead(s) enrichi(s).`
 );
+setCurrentLeadPreview(null);
 } catch (error: any) {
 console.error("dashboard analyze error:", error);
 setMessage(error?.message || "Impossible d’analyser le CSV.");
 } finally {
 setIsAnalyzing(false);
+setCurrentLeadPreview(null);
 setAnalysisProgress({
 current: 0,
 total: 0,
@@ -805,17 +866,18 @@ return "border-white/10 bg-white/5 text-white/65 hover:bg-white/10";
 
 return (
 <ProtectedPage>
-<main className="min-h-screen bg-slate-950 text-white">
+<main className="revora-app-bg relative min-h-screen overflow-hidden text-white">
 <TopNav />
 
-<div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-8 px-6 py-8">
+<div className="relative mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-8 px-6 py-8">
 <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-<div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="revora-glass revora-reveal relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-2xl shadow-slate-950/30">
 <div className="absolute inset-0 bg-slate-950/75" />
-<div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.25),transparent_30%),radial-gradient(circle_at_left,rgba(34,211,238,0.15),transparent_20%)]" />
+<div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.16),transparent_30%)]" />
 
 <div className="relative p-8 md:p-10">
-<p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
+<p className="mb-4 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
+<span className="revora-pulse h-2 w-2 rounded-full bg-cyan-300" />
 Sales intelligence
 </p>
 
@@ -833,7 +895,7 @@ préparer les meilleures actions commerciales.
 </p>
 
 <div className="mt-8 grid gap-4 sm:grid-cols-3">
-<div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
+<div className="revora-lift rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
 <p className="text-xs uppercase tracking-wider text-white/45">
 Pipeline
 </p>
@@ -842,7 +904,7 @@ Pipeline
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
+<div className="revora-lift rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
 <p className="text-xs uppercase tracking-wider text-white/45">
 Score moyen
 </p>
@@ -851,7 +913,7 @@ Score moyen
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
+<div className="revora-lift rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
 <p className="text-xs uppercase tracking-wider text-white/45">
 Plan actif
 </p>
@@ -863,7 +925,7 @@ Plan actif
 </div>
 </div>
 
-<div className="rounded-[32px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="revora-glass revora-reveal revora-reveal-delay-1 rounded-[32px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
 <div className="mb-6">
 <p className="text-sm font-medium text-blue-600">Analyse CSV</p>
 <h2 className="mt-1 text-2xl font-semibold">
@@ -887,7 +949,7 @@ setFormData((prev) => ({
 companyName: event.target.value,
 }))
 }
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 />
 </div>
 
@@ -909,7 +971,7 @@ companyDescription: event.target.value,
 }))
 }
 rows={3}
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 />
 </div>
 
@@ -931,7 +993,7 @@ offerDescription: event.target.value,
 }))
 }
 rows={3}
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 />
 </div>
 
@@ -950,7 +1012,7 @@ setFormData((prev) => ({
 target: event.target.value,
 }))
 }
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 />
 </div>
 
@@ -964,7 +1026,7 @@ name="csvFile"
 type="file"
 accept=".csv"
 onChange={handleFileChange}
-className="rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm"
+className="revora-lift rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm"
 />
 {csvFile && (
 <p className="text-sm text-slate-500">
@@ -978,7 +1040,7 @@ Lecture du CSV en cours...
 )}
 </div>
 
-<div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+<div className="revora-moving-band rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
 <p>Export : {exportFormat}</p>
 <p className="mt-2 font-medium">
 Plan {sessionPlan.toUpperCase()} ·{" "}
@@ -998,7 +1060,7 @@ Restants ce mois : {remainingThisMonth ?? 0} leads
 type="button"
 onClick={handleAdvancedAnalysis}
 disabled={isAnalyzing}
-className="rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+className="revora-shine revora-lift rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
 >
 {isAnalyzing ? "Analyse en cours..." : "Analyser mes leads"}
 </button>
@@ -1007,7 +1069,7 @@ className="rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white
 <button
 type="button"
 onClick={downloadEnrichedCsv}
-className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 transition hover:bg-slate-50"
+className="revora-lift rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 transition hover:bg-slate-50"
 >
 Télécharger Excel
 </button>
@@ -1015,8 +1077,78 @@ Télécharger Excel
 </div>
 
 {isAnalyzing && analysisProgress.total > 0 && (
-<div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
-Analyse en cours... {analysisProgress.current} / {analysisProgress.total} leads traités
+<div className="rounded-3xl border border-cyan-200 bg-slate-950 p-5 text-white shadow-2xl shadow-cyan-950/20">
+<div className="flex items-start gap-4">
+<div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-400/10">
+<div className="revora-orbit absolute inset-1 rounded-2xl border-2 border-cyan-300 border-r-transparent" />
+<span className="revora-pulse h-2.5 w-2.5 rounded-full bg-cyan-300" />
+</div>
+
+<div className="min-w-0 flex-1">
+<div className="flex flex-wrap items-center justify-between gap-3">
+<div>
+<p className="text-sm font-semibold text-cyan-200">
+Analyse IA en cours
+</p>
+<p className="mt-1 text-xs text-white/55">
+Scoring, priorisation et recommandations commerciales
+</p>
+</div>
+
+<div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
+{analysisPercent}%
+</div>
+</div>
+
+<div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+<div
+className="revora-progress-loop h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-blue-400 transition-all duration-500"
+style={{ width: `${Math.max(analysisPercent, 8)}%` }}
+/>
+</div>
+
+{currentLeadPreview && (
+<div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+<div className="flex flex-wrap items-center justify-between gap-3">
+<p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+Lead en traitement
+</p>
+<span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/75">
+#{currentLeadPreview.index}
+</span>
+</div>
+
+<div className="mt-3 grid gap-2 sm:grid-cols-2">
+{currentLeadCells.map((cell) => (
+<div
+key={`${currentLeadPreview.index}-${cell.header}`}
+className="rounded-xl bg-slate-900/70 px-3 py-2"
+>
+<p className="text-[11px] uppercase tracking-[0.14em] text-white/35">
+{cell.header}
+</p>
+<p className="mt-1 truncate text-sm font-medium text-white/85">
+{cell.value}
+</p>
+</div>
+))}
+</div>
+</div>
+)}
+
+<div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-white/55">
+<span>
+{analysisProgress.current} / {analysisProgress.total} leads traites
+</span>
+<span className="inline-flex items-center gap-1">
+Traitement
+<span className="revora-dot h-1.5 w-1.5 rounded-full bg-cyan-300" />
+<span className="revora-dot h-1.5 w-1.5 rounded-full bg-cyan-300" />
+<span className="revora-dot h-1.5 w-1.5 rounded-full bg-cyan-300" />
+</span>
+</div>
+</div>
+</div>
 </div>
 )}
 
@@ -1030,7 +1162,7 @@ Analyse en cours... {analysisProgress.current} / {analysisProgress.total} leads 
 </section>
 
 {enrichedLeads.length > 0 && (
-<section className="rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+<section className="revora-glass revora-reveal rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
 <div className="mb-6 flex flex-col gap-5">
 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 <div>
@@ -1041,7 +1173,7 @@ Analyse forte REVORA
 </div>
 
 <div className="grid grid-cols-3 gap-3 md:w-[320px]">
-<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-center">
+<div className="revora-lift rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-center">
 <p className="text-xs uppercase tracking-wider text-emerald-300">
 GO
 </p>
@@ -1050,7 +1182,7 @@ GO
 </p>
 </div>
 
-<div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-center">
+<div className="revora-lift rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-center">
 <p className="text-xs uppercase tracking-wider text-amber-300">
 MAYBE
 </p>
@@ -1059,7 +1191,7 @@ MAYBE
 </p>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+<div className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
 <p className="text-xs uppercase tracking-wider text-white/55">
 SKIP
 </p>
@@ -1076,7 +1208,7 @@ type="text"
 placeholder="Rechercher un lead, une entreprise, un angle..."
 value={searchTerm}
 onChange={(event) => setSearchTerm(event.target.value)}
-className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/35"
+className="revora-lift rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/35"
 />
 
 <div className="flex flex-wrap gap-2">
@@ -1104,7 +1236,7 @@ filter
 {filteredLeads.map((lead, index) => (
 <div
 key={index}
-className="rounded-2xl border border-white/10 bg-white/5 p-5"
+className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-5"
 >
 <div className="mb-4 flex items-start justify-between gap-4">
 <div>

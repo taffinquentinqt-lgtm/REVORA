@@ -550,11 +550,11 @@ return "border-white/10 bg-white/5 text-white/65 hover:border-white/20 hover:bg-
 
 return (
 <ProtectedPage>
-<main className="min-h-screen bg-slate-950 text-white">
+<main className="revora-app-bg relative min-h-screen overflow-hidden text-white">
 <TopNav />
 
-<div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8 px-6 py-8">
-<section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-slate-900 p-6 shadow-2xl shadow-slate-950/30 md:p-8">
+<div className="relative mx-auto flex w-full max-w-[1600px] flex-col gap-8 px-6 py-8">
+<section className="revora-glass revora-reveal relative overflow-hidden rounded-[36px] border border-white/10 bg-slate-900 p-6 shadow-2xl shadow-slate-950/30 md:p-8">
 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(59,130,246,0.22),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.1),rgba(15,23,42,0.9))]" />
 <div className="relative grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
 <div>
@@ -591,7 +591,7 @@ de passation.
 </section>
 
 <section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-<div className="rounded-[32px] border border-white/10 bg-white p-6 text-slate-950 shadow-2xl shadow-slate-950/25 md:p-8">
+<div className="revora-glass revora-reveal rounded-[32px] border border-white/10 bg-white p-6 text-slate-950 shadow-2xl shadow-slate-950/25 md:p-8">
 <div className="flex flex-col gap-5">
 <div>
 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
@@ -689,7 +689,7 @@ Exporter CSV enrichi
 </div>
 </div>
 
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl md:p-8">
+<div className="revora-glass revora-reveal revora-reveal-delay-1 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl md:p-8">
 <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
 <div>
 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
@@ -755,7 +755,7 @@ className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1 text-
 </div>
 </section>
 
-<section className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl md:p-8">
+<section className="revora-glass revora-reveal rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl md:p-8">
 <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
 <div>
 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">

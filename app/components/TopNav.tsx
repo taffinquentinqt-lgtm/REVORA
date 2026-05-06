@@ -31,19 +31,19 @@ router.push("/login");
 }
 
 return (
-<div className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-2xl">
+<div className="revora-reveal sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-2xl">
 <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-4">
 <div className="flex items-center gap-3">
 <Link
 href="/"
-className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2"
+className="revora-lift inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2"
 >
-<span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
+<span className="revora-pulse h-2.5 w-2.5 rounded-full bg-cyan-400" />
 <span className="text-sm font-medium text-white/90">REVORA</span>
 </Link>
 
 {session && (
-<div className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 md:block">
+<div className="revora-lift hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 md:block">
 {session.email} · {session.plan.toUpperCase()}
 </div>
 )}
@@ -60,8 +60,8 @@ key={link.href}
 href={link.href}
 className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
 active
-? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
-: "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
+? "revora-active-glow border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+: "revora-lift border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
 }`}
 >
 {link.label}
@@ -73,7 +73,7 @@ active
 <button
 type="button"
 onClick={handleLogout}
-className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10"
+className="revora-lift rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10"
 >
 Logout
 </button>

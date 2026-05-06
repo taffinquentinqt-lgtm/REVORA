@@ -111,11 +111,11 @@ setIsLoading(false);
 
 return (
 <ProtectedPage>
-<main className="min-h-screen bg-slate-950 text-white">
+<main className="revora-app-bg relative min-h-screen overflow-hidden text-white">
 <TopNav />
 
-<div className="mx-auto max-w-7xl px-6 py-8">
-<div className="mb-8">
+<div className="relative mx-auto max-w-7xl px-6 py-8">
+<div className="revora-reveal mb-8">
 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
 Paramètres REVORA
 </p>
@@ -129,7 +129,7 @@ REVORA construit ensuite un cadrage commercial enrichi.
 </div>
 
 <section className="grid gap-8 xl:grid-cols-[1fr_1fr]">
-<div className="rounded-[28px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="revora-glass revora-reveal rounded-[28px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
 <div className="grid gap-5">
 <div className="grid gap-2">
 <label
@@ -143,7 +143,7 @@ id="offerDescription"
 value={offerDescription}
 onChange={(event) => setOfferDescription(event.target.value)}
 rows={4}
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 placeholder="Exemple : logiciel de prospection B2B, service de génération de pipeline, solution d’optimisation commerciale..."
 />
 </div>
@@ -160,7 +160,7 @@ id="problemSolved"
 value={problemSolved}
 onChange={(event) => setProblemSolved(event.target.value)}
 rows={4}
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 placeholder="Exemple : aide les équipes sales à mieux prioriser leurs leads et à gagner du temps dans la qualification."
 />
 </div>
@@ -179,7 +179,7 @@ value={targetCompanyTypes}
 onChange={(event) =>
 setTargetCompanyTypes(event.target.value)
 }
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 placeholder="Exemple : PME B2B, SaaS, agences, cabinets de conseil..."
 />
 </div>
@@ -193,7 +193,7 @@ id="targetRoles"
 type="text"
 value={targetRoles}
 onChange={(event) => setTargetRoles(event.target.value)}
-className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
 placeholder="Exemple : CEO, Head of Sales, Directeur commercial, Responsable acquisition..."
 />
 </div>
@@ -202,7 +202,7 @@ placeholder="Exemple : CEO, Head of Sales, Directeur commercial, Responsable acq
 type="button"
 onClick={handleGenerateProfile}
 disabled={isLoading}
-className="mt-2 rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+className="revora-shine revora-lift mt-2 rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
 >
 {isLoading
 ? "Génération en cours..."
@@ -223,7 +223,7 @@ className="mt-2 rounded-2xl bg-slate-950 px-5 py-4 text-base font-semibold text-
 </div>
 </div>
 
-<div className="rounded-[28px] border border-white/10 bg-white/5 p-7 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+<div className="revora-glass revora-reveal revora-reveal-delay-1 rounded-[28px] border border-white/10 bg-white/5 p-7 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
 Profil enrichi
 </p>

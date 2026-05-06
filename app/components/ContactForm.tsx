@@ -87,7 +87,7 @@ export default function ContactForm() {
             name="name"
             required
             autoComplete="name"
-            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+            className="revora-lift rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
             placeholder="Ton nom"
           />
         </label>
@@ -99,7 +99,7 @@ export default function ContactForm() {
             name="email"
             required
             autoComplete="email"
-            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+            className="revora-lift rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
             placeholder="ton@email.com"
           />
         </label>
@@ -110,7 +110,7 @@ export default function ContactForm() {
         <input
           name="company"
           autoComplete="organization"
-          className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+          className="revora-lift rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
           placeholder="Optionnel"
         />
       </label>
@@ -121,7 +121,7 @@ export default function ContactForm() {
           type="url"
           name="linkedin"
           autoComplete="url"
-          className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+          className="revora-lift rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
           placeholder="https://www.linkedin.com/in/..."
         />
       </label>
@@ -133,7 +133,7 @@ export default function ContactForm() {
           required
           minLength={10}
           rows={5}
-          className="resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+          className="revora-lift resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
           placeholder="Dis-nous ce que tu veux analyser avec REVORA..."
         />
       </label>
@@ -142,7 +142,7 @@ export default function ContactForm() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="revora-shine revora-lift rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Envoi..." : "Envoyer le message"}
         </button>

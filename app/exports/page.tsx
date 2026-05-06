@@ -14,11 +14,11 @@ setExportsList(getExports());
 
 return (
 <ProtectedPage>
-<main className="min-h-screen bg-slate-950 text-white">
+<main className="revora-app-bg relative min-h-screen overflow-hidden text-white">
 <TopNav />
 
-<div className="mx-auto max-w-7xl px-6 py-10">
-<div className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+<div className="relative mx-auto max-w-7xl px-6 py-10">
+<div className="revora-glass revora-reveal rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
 REVORA
 </p>
@@ -31,14 +31,14 @@ Retrouve ici l’historique de tes exports générés.
 
 <div className="mt-8 grid gap-4">
 {exportsList.length === 0 ? (
-<div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white/70">
+<div className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-5 text-white/70">
 Aucun export disponible pour le moment.
 </div>
 ) : (
 exportsList.map((item, index) => (
 <div
 key={`${item.fileName}-${index}`}
-className="rounded-2xl border border-white/10 bg-white/5 p-5"
+className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-5"
 >
 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 <div>

@@ -335,7 +335,7 @@ Avant de répondre, vérifie :
 - que la sortie est bien du JSON valide uniquement
 
 LEADS À ANALYSER
-${JSON.stringify(csvData, null, 2)}
+${JSON.stringify(csvData)}
 `;
 
 const response = await client.responses.create({
@@ -346,7 +346,7 @@ role: "user",
 content: prompt,
 },
 ],
-reasoning: { effort: "medium" },
+reasoning: { effort: "low" },
 });
 
 const text = response.output_text?.trim();
