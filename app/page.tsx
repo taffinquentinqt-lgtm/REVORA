@@ -20,6 +20,15 @@ style={{ backgroundImage: "url('/revora-hero.jpg')" }}
 </div>
 
 <div className="flex items-center gap-3">
+<a
+href="https://www.linkedin.com/company/revorabiz/"
+target="_blank"
+rel="noreferrer"
+className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10"
+>
+LinkedIn
+</a>
+
 <Link
 href="#contact"
 className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10"
