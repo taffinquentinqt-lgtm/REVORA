@@ -116,6 +116,17 @@ export default function ContactForm() {
       </label>
 
       <label className="grid gap-2 text-sm font-medium text-white/75">
+        LinkedIn
+        <input
+          type="url"
+          name="linkedin"
+          autoComplete="url"
+          className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/60"
+          placeholder="https://www.linkedin.com/in/..."
+        />
+      </label>
+
+      <label className="grid gap-2 text-sm font-medium text-white/75">
         Message
         <textarea
           name="message"

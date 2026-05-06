@@ -193,6 +193,14 @@ Parle-nous de ton besoin
 Envoie un message a l&apos;equipe REVORA. Il sera adresse a
 qtntfnns@gmail.com.
 </p>
+<a
+href="https://www.linkedin.com/company/revorabiz/"
+target="_blank"
+rel="noreferrer"
+className="mt-6 inline-flex rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/15"
+>
+LinkedIn REVORA
+</a>
 </div>
 
 <ContactForm />

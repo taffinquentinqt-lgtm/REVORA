@@ -10,6 +10,7 @@ type ContactPayload = {
   name?: unknown;
   email?: unknown;
   company?: unknown;
+  linkedin?: unknown;
   message?: unknown;
   website?: unknown;
 };
@@ -18,13 +19,20 @@ function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function makeMailtoHref(name: string, email: string, company: string, message: string) {
+function makeMailtoHref(
+  name: string,
+  email: string,
+  company: string,
+  linkedin: string,
+  message: string
+) {
   const subject = encodeURIComponent(`Contact REVORA - ${name || email}`);
   const body = encodeURIComponent(
     [
       `Nom: ${name}`,
       `Email: ${email}`,
       company ? `Entreprise: ${company}` : "",
+      linkedin ? `LinkedIn: ${linkedin}` : "",
       "",
       message,
     ]
@@ -41,6 +49,7 @@ export async function POST(req: Request) {
     const name = clean(body.name);
     const email = clean(body.email);
     const company = clean(body.company);
+    const linkedin = clean(body.linkedin);
     const message = clean(body.message);
     const website = clean(body.website);
 
@@ -76,7 +85,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const mailtoHref = makeMailtoHref(name, email, company, message);
+    const mailtoHref = makeMailtoHref(name, email, company, linkedin, message);
 
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json({
@@ -101,6 +110,7 @@ export async function POST(req: Request) {
           `Nom: ${name}`,
           `Email: ${email}`,
           company ? `Entreprise: ${company}` : "",
+          linkedin ? `LinkedIn: ${linkedin}` : "",
           "",
           message,
         ]
