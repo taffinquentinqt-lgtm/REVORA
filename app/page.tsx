@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ContactForm from "./components/ContactForm";
 
 export default function HomePage() {
 return (
@@ -19,6 +20,13 @@ style={{ backgroundImage: "url('/revora-hero.jpg')" }}
 </div>
 
 <div className="flex items-center gap-3">
+<Link
+href="#contact"
+className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10"
+>
+Contact
+</Link>
+
 <Link
 href="/login"
 className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10"
@@ -169,6 +177,25 @@ Exporter rapidement un fichier enrichi prêt à être utilisé par une
 équipe SDR, Biz Dev ou AE.
 </p>
 </div>
+</div>
+</section>
+
+<section id="contact" className="mx-auto max-w-7xl scroll-mt-24 px-6 pb-20">
+<div className="grid gap-8 rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl shadow-slate-950/30 backdrop-blur-xl lg:grid-cols-[0.85fr_1.15fr] lg:p-10">
+<div>
+<p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300/90">
+Contact
+</p>
+<h2 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+Parle-nous de ton besoin
+</h2>
+<p className="mt-4 max-w-xl text-white/65">
+Envoie un message a l&apos;equipe REVORA. Il sera adresse a
+qtntfnns@gmail.com.
+</p>
+</div>
+
+<ContactForm />
 </div>
 </section>
 
