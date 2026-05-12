@@ -17,6 +17,18 @@ recommendedAngles: string[];
 priorityLogic: string;
 };
 
+const PRIORITIES = new Set(["GO", "MAYBE", "SKIP"]);
+const CONFIDENCE_LEVELS = new Set(["high", "medium", "low"]);
+const ANALYSIS_DEPTHS = new Set(["basic", "advanced"]);
+const TRI_LEVELS = new Set(["low", "medium", "high"]);
+const SALES_READINESS = new Set(["not_ready", "worth_testing", "ready_for_meeting"]);
+
+const clampScore = (value: unknown, min: number, max: number) =>
+Math.min(max, Math.max(min, Number(value) || 0));
+
+const pickEnum = <T extends string>(value: unknown, allowed: Set<T>, fallback: T): T =>
+allowed.has(value as T) ? (value as T) : fallback;
+
 export async function POST(req: Request) {
 try {
 const body = await req.json();
@@ -379,18 +391,31 @@ raw: parsed,
 
 const normalizedResults = [...parsed.results]
 .sort((a, b) => Number(a.row_index) - Number(b.row_index))
-.map((item) => ({
-row_index: Number(item.row_index) || 0,
-lead_score: Number(item.lead_score) || 0,
-priority: item.priority || "MAYBE",
-confidence_level: item.confidence_level || "medium",
-analysis_depth: item.analysis_depth || "basic",
+.map((item) => {
+const fit_icp_score = clampScore(item.fit_icp_score, 0, 25);
+const role_relevance_score = clampScore(item.role_relevance_score, 0, 20);
+const data_quality_score = clampScore(item.data_quality_score, 0, 15);
+const need_relevance_score = clampScore(item.need_relevance_score, 0, 20);
+const actionability_score = clampScore(item.actionability_score, 0, 20);
+const computedLeadScore =
+fit_icp_score +
+role_relevance_score +
+data_quality_score +
+need_relevance_score +
+actionability_score;
 
-fit_icp_score: Number(item.fit_icp_score) || 0,
-role_relevance_score: Number(item.role_relevance_score) || 0,
-data_quality_score: Number(item.data_quality_score) || 0,
-need_relevance_score: Number(item.need_relevance_score) || 0,
-actionability_score: Number(item.actionability_score) || 0,
+return {
+row_index: Number(item.row_index) || 0,
+lead_score: computedLeadScore,
+priority: pickEnum(item.priority, PRIORITIES, "MAYBE"),
+confidence_level: pickEnum(item.confidence_level, CONFIDENCE_LEVELS, "medium"),
+analysis_depth: pickEnum(item.analysis_depth, ANALYSIS_DEPTHS, "basic"),
+
+fit_icp_score,
+role_relevance_score,
+data_quality_score,
+need_relevance_score,
+actionability_score,
 
 fit_reason: item.fit_reason || "",
 why_now: item.why_now || "",
@@ -411,18 +436,19 @@ next_best_action: item.next_best_action || "",
 probable_objection: item.probable_objection || "",
 objection_handling: item.objection_handling || "",
 
-opportunity_level: item.opportunity_level || "medium",
-deal_potential: item.deal_potential || "medium",
-pain_clarity: item.pain_clarity || "medium",
-urgency_level: item.urgency_level || "medium",
-sales_readiness: item.sales_readiness || "worth_testing",
+opportunity_level: pickEnum(item.opportunity_level, TRI_LEVELS, "medium"),
+deal_potential: pickEnum(item.deal_potential, TRI_LEVELS, "medium"),
+pain_clarity: pickEnum(item.pain_clarity, TRI_LEVELS, "medium"),
+urgency_level: pickEnum(item.urgency_level, TRI_LEVELS, "medium"),
+sales_readiness: pickEnum(item.sales_readiness, SALES_READINESS, "worth_testing"),
 discovery_focus: item.discovery_focus || "",
 questions_to_ask: Array.isArray(item.questions_to_ask)
 ? item.questions_to_ask
 : [],
 value_hypothesis: item.value_hypothesis || "",
 handoff_note: item.handoff_note || "",
-}));
+};
+});
 
 return NextResponse.json({ results: normalizedResults });
 } catch (error: any) {
