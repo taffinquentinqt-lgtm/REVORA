@@ -1,12 +1,9 @@
-import OpenAI from "openai";
+import { gateway } from "@ai-sdk/gateway";
+import { generateText } from "ai";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const client = new OpenAI({
-apiKey: process.env.OPENAI_API_KEY,
-});
 
 type GeneratedProfile = {
 productSummary: string;
@@ -41,15 +38,12 @@ headers: string[];
 rows: string[][];
 } = body;
 
-if (!process.env.OPENAI_API_KEY) {
+if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
 return NextResponse.json(
-{ error: "OPENAI_API_KEY introuvable côté serveur." },
+{ error: "GOOGLE_GENERATIVE_AI_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
-const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY ,
-});
 
 if (!brief || !generatedProfile || !headers || !rows) {
 return NextResponse.json(
@@ -338,20 +332,12 @@ LEADS À ANALYSER
 ${JSON.stringify(csvData)}
 `;
 
-const response = await client.responses.create({
-model: "gpt-5.5",
-input: [
-{
-role: "user",
-content: prompt,
-},
-],
-reasoning: { effort: "low" },
+const { text } = await generateText({
+model: gateway("google/gemini-2.0-flash"),
+prompt: prompt,
 });
 
-const text = response.output_text?.trim();
-
-if (!text) {
+if (!text?.trim()) {
 return NextResponse.json(
 { error: "Réponse OpenAI vide." },
 { status: 500 }
@@ -446,7 +432,7 @@ return NextResponse.json(
 {
 error:
 error?.message ||
-"Impossible d’analyser le CSV avec OpenAI.",
+"Impossible d’analyser le CSV avec Gemini.",
 },
 { status: 500 }
 );

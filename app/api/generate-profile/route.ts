@@ -1,9 +1,6 @@
-import OpenAI from "openai";
+import { gateway } from "@ai-sdk/gateway";
+import { generateText } from "ai";
 import { NextResponse } from "next/server";
-
-const client = new OpenAI({
-apiKey: process.env.OPENAI_API_KEY,
-});
 
 type GeneratedProfile = {
 productSummary: string;
@@ -19,9 +16,9 @@ priorityLogic: string;
 
 export async function POST(req: Request) {
 try {
-if (!process.env.OPENAI_API_KEY) {
+if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
 return NextResponse.json(
-{ error: "OPENAI_API_KEY introuvable côté serveur." },
+{ error: "GOOGLE_GENERATIVE_AI_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -79,20 +76,12 @@ Format obligatoire :
 }
 `;
 
-const response = await client.responses.create({
-model: "gpt-5.5",
-input: [
-{
-role: "user",
-content: `Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.\n\n${prompt}`,
-},
-],
-reasoning: { effort: "medium" },
+const { text } = await generateText({
+model: gateway("google/gemini-2.0-flash"),
+prompt: `Tu es SalesPilote. Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.\n\n${prompt}`,
 });
 
-const text = response.output_text?.trim();
-
-if (!text) {
+if (!text?.trim()) {
 return NextResponse.json(
 { error: "Réponse IA vide." },
 { status: 500 }
@@ -121,7 +110,7 @@ return NextResponse.json(
 error:
 error instanceof Error
 ? error.message
-: "Impossible de générer le profil d’analyse avec OpenAI.",
+: "Impossible de générer le profil d’analyse avec Gemini.",
 },
 { status: 500 }
 );
