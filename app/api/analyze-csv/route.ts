@@ -1,9 +1,13 @@
-import { gateway } from "@ai-sdk/gateway";
-import { generateText } from "ai";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const client = new OpenAI({
+apiKey: process.env.MAMMOUTH_API_KEY,
+baseURL: "https://api.mammouth.ai/v1",
+});
 
 type GeneratedProfile = {
 productSummary: string;
@@ -16,18 +20,6 @@ businessPains: string[];
 recommendedAngles: string[];
 priorityLogic: string;
 };
-
-const PRIORITIES = new Set(["GO", "MAYBE", "SKIP"]);
-const CONFIDENCE_LEVELS = new Set(["high", "medium", "low"]);
-const ANALYSIS_DEPTHS = new Set(["basic", "advanced"]);
-const TRI_LEVELS = new Set(["low", "medium", "high"]);
-const SALES_READINESS = new Set(["not_ready", "worth_testing", "ready_for_meeting"]);
-
-const clampScore = (value: unknown, min: number, max: number) =>
-Math.min(max, Math.max(min, Number(value) || 0));
-
-const pickEnum = <T extends string>(value: unknown, allowed: Set<T>, fallback: T): T =>
-allowed.has(value as T) ? (value as T) : fallback;
 
 export async function POST(req: Request) {
 try {
@@ -50,9 +42,9 @@ headers: string[];
 rows: string[][];
 } = body;
 
-if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+if (!process.env.MAMMOUTH_API_KEY) {
 return NextResponse.json(
-{ error: "GOOGLE_GENERATIVE_AI_API_KEY introuvable côté serveur." },
+{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -341,17 +333,30 @@ Avant de répondre, vérifie :
 - que la sortie est bien du JSON valide uniquement
 
 LEADS À ANALYSER
-${JSON.stringify(csvData)}
+${JSON.stringify(csvData, null, 2)}
 `;
 
-const { text } = await generateText({
-model: gateway("google/gemini-2.0-flash"),
-prompt: prompt,
+const response = await client.chat.completions.create({
+model: "gpt-4.1-mini",
+messages: [
+{
+role: "system",
+content:
+"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
+},
+{
+role: "user",
+content: prompt,
+},
+],
+temperature: 0.1,
 });
 
-if (!text?.trim()) {
+const text = response.choices?.[0]?.message?.content?.trim();
+
+if (!text) {
 return NextResponse.json(
-{ error: "Réponse OpenAI vide." },
+{ error: "Réponse IA vide." },
 { status: 500 }
 );
 }
@@ -362,7 +367,7 @@ parsed = JSON.parse(text);
 } catch {
 return NextResponse.json(
 {
-error: "La réponse OpenAI n’est pas un JSON valide.",
+error: "La réponse IA n’est pas un JSON valide.",
 raw: text,
 },
 { status: 500 }
@@ -372,7 +377,7 @@ raw: text,
 if (!parsed.results || !Array.isArray(parsed.results)) {
 return NextResponse.json(
 {
-error: "Format de réponse OpenAI invalide : results manquant ou invalide.",
+error: "Format de réponse IA invalide : results manquant ou invalide.",
 raw: parsed,
 },
 { status: 500 }
@@ -382,7 +387,7 @@ raw: parsed,
 if (parsed.results.length !== rows.length) {
 return NextResponse.json(
 {
-error: `OpenAI a retourné ${parsed.results.length} résultats pour ${rows.length} leads.`,
+error: `L'IA a retourné ${parsed.results.length} résultats pour ${rows.length} leads.`,
 raw: parsed,
 },
 { status: 500 }
@@ -391,31 +396,18 @@ raw: parsed,
 
 const normalizedResults = [...parsed.results]
 .sort((a, b) => Number(a.row_index) - Number(b.row_index))
-.map((item) => {
-const fit_icp_score = clampScore(item.fit_icp_score, 0, 25);
-const role_relevance_score = clampScore(item.role_relevance_score, 0, 20);
-const data_quality_score = clampScore(item.data_quality_score, 0, 15);
-const need_relevance_score = clampScore(item.need_relevance_score, 0, 20);
-const actionability_score = clampScore(item.actionability_score, 0, 20);
-const computedLeadScore =
-fit_icp_score +
-role_relevance_score +
-data_quality_score +
-need_relevance_score +
-actionability_score;
-
-return {
+.map((item) => ({
 row_index: Number(item.row_index) || 0,
-lead_score: computedLeadScore,
-priority: pickEnum(item.priority, PRIORITIES, "MAYBE"),
-confidence_level: pickEnum(item.confidence_level, CONFIDENCE_LEVELS, "medium"),
-analysis_depth: pickEnum(item.analysis_depth, ANALYSIS_DEPTHS, "basic"),
+lead_score: Number(item.lead_score) || 0,
+priority: item.priority || "MAYBE",
+confidence_level: item.confidence_level || "medium",
+analysis_depth: item.analysis_depth || "basic",
 
-fit_icp_score,
-role_relevance_score,
-data_quality_score,
-need_relevance_score,
-actionability_score,
+fit_icp_score: Number(item.fit_icp_score) || 0,
+role_relevance_score: Number(item.role_relevance_score) || 0,
+data_quality_score: Number(item.data_quality_score) || 0,
+need_relevance_score: Number(item.need_relevance_score) || 0,
+actionability_score: Number(item.actionability_score) || 0,
 
 fit_reason: item.fit_reason || "",
 why_now: item.why_now || "",
@@ -436,29 +428,31 @@ next_best_action: item.next_best_action || "",
 probable_objection: item.probable_objection || "",
 objection_handling: item.objection_handling || "",
 
-opportunity_level: pickEnum(item.opportunity_level, TRI_LEVELS, "medium"),
-deal_potential: pickEnum(item.deal_potential, TRI_LEVELS, "medium"),
-pain_clarity: pickEnum(item.pain_clarity, TRI_LEVELS, "medium"),
-urgency_level: pickEnum(item.urgency_level, TRI_LEVELS, "medium"),
-sales_readiness: pickEnum(item.sales_readiness, SALES_READINESS, "worth_testing"),
+opportunity_level: item.opportunity_level || "medium",
+deal_potential: item.deal_potential || "medium",
+pain_clarity: item.pain_clarity || "medium",
+urgency_level: item.urgency_level || "medium",
+sales_readiness: item.sales_readiness || "worth_testing",
 discovery_focus: item.discovery_focus || "",
 questions_to_ask: Array.isArray(item.questions_to_ask)
 ? item.questions_to_ask
 : [],
 value_hypothesis: item.value_hypothesis || "",
 handoff_note: item.handoff_note || "",
-};
-});
+}));
 
 return NextResponse.json({ results: normalizedResults });
 } catch (error: any) {
-console.error("analyze-csv openai error:", error);
+console.error("analyze-csv error:", error);
 
 return NextResponse.json(
 {
 error:
 error?.message ||
-"Impossible d’analyser le CSV avec Gemini.",
+error?.error?.message ||
+error?.response?.data ||
+JSON.stringify(error) ||
+"Impossible d’analyser le CSV.",
 },
 { status: 500 }
 );

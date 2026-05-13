@@ -1,24 +1,16 @@
-import { gateway } from "@ai-sdk/gateway";
-import { generateText } from "ai";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
-type GeneratedProfile = {
-productSummary: string;
-problemSummary: string;
-valueProposition: string;
-icpSummary: string;
-targetFunctions: string[];
-buyingSignals: string[];
-businessPains: string[];
-recommendedAngles: string[];
-priorityLogic: string;
-};
+const client = new OpenAI({
+apiKey: process.env.MAMMOUTH_API_KEY,
+baseURL: "https://api.mammouth.ai/v1",
+});
 
 export async function POST(req: Request) {
 try {
-if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+if (!process.env.MAMMOUTH_API_KEY) {
 return NextResponse.json(
-{ error: "GOOGLE_GENERATIVE_AI_API_KEY introuvable côté serveur." },
+{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -76,19 +68,32 @@ Format obligatoire :
 }
 `;
 
-const { text } = await generateText({
-model: gateway("google/gemini-2.0-flash"),
-prompt: `Tu es SalesPilote. Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.\n\n${prompt}`,
+const response = await client.chat.completions.create({
+model: "gpt-4.1-mini",
+messages: [
+{
+role: "system",
+content:
+"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
+},
+{
+role: "user",
+content: prompt,
+},
+],
+temperature: 0.2,
 });
 
-if (!text?.trim()) {
+const text = response.choices?.[0]?.message?.content?.trim();
+
+if (!text) {
 return NextResponse.json(
 { error: "Réponse IA vide." },
 { status: 500 }
 );
 }
 
-let parsed: GeneratedProfile;
+let parsed: any;
 try {
 parsed = JSON.parse(text);
 } catch {
@@ -102,15 +107,17 @@ raw: text,
 }
 
 return NextResponse.json(parsed);
-} catch (error: unknown) {
+} catch (error: any) {
 console.error("generate-profile error:", error);
 
 return NextResponse.json(
 {
 error:
-error instanceof Error
-? error.message
-: "Impossible de générer le profil d’analyse avec Gemini.",
+error?.message ||
+error?.error?.message ||
+error?.response?.data ||
+JSON.stringify(error) ||
+"Impossible de générer le profil d’analyse.",
 },
 { status: 500 }
 );
