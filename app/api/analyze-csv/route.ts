@@ -21,6 +21,21 @@ type GeneratedProfile = {
   priorityLogic: string;
 };
 
+type Brief = {
+  offerDescription: string;
+  problemSolved: string;
+  targetCompanyTypes: string;
+  targetRoles: string;
+  averageDealSize?: string;
+  averageSalesCycle?: string;
+  uniqueDifferentiator?: string;
+  commonObjections?: string;
+  mainCompetitors?: string;
+  alreadyContacted?: string;
+  inPipeline?: string;
+  blacklisted?: string;
+};
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -31,12 +46,7 @@ export async function POST(req: Request) {
       headers,
       rows,
     }: {
-      brief: {
-        offerDescription: string;
-        problemSolved: string;
-        targetCompanyTypes: string;
-        targetRoles: string;
-      };
+      brief: Brief;
       generatedProfile: GeneratedProfile;
       headers: string[];
       rows: string[][];
@@ -51,7 +61,7 @@ export async function POST(req: Request) {
 
     if (!brief || !generatedProfile || !headers || !rows) {
       return NextResponse.json(
-        { error: "Données incomplètes pour l’analyse CSV." },
+        { error: "Données incomplètes pour l'analyse CSV." },
         { status: 400 }
       );
     }
@@ -74,76 +84,121 @@ export async function POST(req: Request) {
       const obj: Record<string, string | number> = {
         row_index: rowIndex,
       };
-
       headers.forEach((header, index) => {
         obj[header] = row[index] ?? "";
       });
-
       return obj;
     });
 
     const prompt = `
-Tu es un expert en qualification de leads B2B.
+Tu es un Revenue Intelligence System de niveau enterprise.
+Tu analyses un portefeuille de leads B2B et produis un plan 
+d'action commercial chirurgical et immédiatement exploitable.
+Tu ne produis QUE du JSON valide. Zéro texte avant ou après.
 
-CONTEXTE
-offer: ${brief.offerDescription}
-problem: ${brief.problemSolved}
-target_companies: ${brief.targetCompanyTypes}
-target_roles: ${brief.targetRoles}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXTE COMMERCIAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ICP (référence)
+OFFRE                 : ${brief.offerDescription}
+PROBLÈME RÉSOLU       : ${brief.problemSolved}
+CIBLES ENTREPRISES    : ${brief.targetCompanyTypes}
+CIBLES PERSONAS       : ${brief.targetRoles}
+DEAL SIZE MOYEN       : ${brief.averageDealSize ?? "Non renseigné"}
+CYCLE DE VENTE        : ${brief.averageSalesCycle ?? "Non renseigné"}
+DIFFÉRENCIATEUR CLÉ   : ${brief.uniqueDifferentiator ?? "Non renseigné"}
+OBJECTIONS RÉCURRENTES: ${brief.commonObjections ?? "Non renseigné"}
+COMPÉTITEURS          : ${brief.mainCompetitors ?? "Non renseigné"}
+DÉJÀ CONTACTÉS        : ${brief.alreadyContacted ?? "Non renseigné"}
+EN PIPELINE ACTIF     : ${brief.inPipeline ?? "Non renseigné"}
+BLACKLISTÉS           : ${brief.blacklisted ?? "Non renseigné"}
+
+ICP DE RÉFÉRENCE
 ${generatedProfile.icpSummary}
 
-OBJECTIF
-Analyser chaque lead et décider s’il faut investir du temps commercial.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOGIQUE DE SCORING — TOTAL /100
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-SCORING (TOTAL /100)
-- fit ICP /25
-- maturité /20
-- signaux d’achat /20
-- pertinence besoin /20
-- actionnabilité /15
+[FIT ICP — /25]
+Secteur exact, taille entreprise, persona ciblé,
+maturité marché, adéquation géographique.
+Pénalité si secteur hors cible ou taille incompatible.
 
-FORMAT JSON STRICT :
+[SIGNAUX D'ACHAT — /25]
+Levée de fonds récente, recrutement en cours,
+nouveau décideur arrivé, expansion géographique,
+stack technologique compatible, contenu consommé,
+événement déclencheur identifiable.
+Bonus si signal daté de moins de 30 jours.
+
+[POTENTIEL REVENU — /20]
+Deal size estimé basé sur taille entreprise + secteur + persona.
+Pondéré par probabilité de conversion estimée.
+Score élevé si fort potentiel ET conversion probable.
+
+[ACTIONNABILITÉ — /20]
+Décideur ou champion identifié, canal accessible,
+données de contact disponibles, timing favorable.
+Pénalité si données critiques absentes.
+
+[EFFORT vs RETOUR — /10]
+Ratio entre effort d'approche estimé et retour potentiel.
+Score élevé = fort retour, faible effort.
+Score bas = données manquantes, accès difficile, cycle long.
+
+RÈGLE DE PRIORITÉ FINALE :
+TRAITER_NOW  → Score ≥ 80 ET actionnabilité ≥ 15
+ENRICHIR     → Score ≥ 75 ET données critiques manquantes
+SEQUENCER    → Score 55–79
+NURTURE      → Score 35–54 OU déjà contacté récemment
+SKIP         → Score < 35 OU blacklisté OU hors ICP total
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT JSON ATTENDU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 {
-  "results": [
-    {
-      "row_index": number,
-      "lead_score": number,
-      "priority": "GO|MAYBE|SKIP",
-
-      "fit_reason": string,
-      "why_now": string,
-
-      "probable_business_pains": string[],
-      "detected_opportunities": string[],
-
-      "best_outreach_channel": "Email|LinkedIn|Call|Multicanal|Enrichissement|Nurture",
-      "channel_reason": string,
-
-      "email_idea": string,
-      "linkedin_idea": string,
-      "call_opener": string,
-
-      "next_best_action": string,
-
-      "effort_level": "low|medium|high|no effort",
-      "confidence_level": "high|medium|low",
-
-      "probable_objection": string,
-      "objection_handling": string
+  "war_room": {
+    "date_analyse": "ISO8601",
+    "total_leads_analyses": number,
+    "dispatch": {
+      "traiter_now": number,
+      "enrichir": number,
+      "sequencer": number,
+      "nurture": number,
+      "skip": number
+    },
+    "top_3_opportunites": [...],
+    "alertes": [...],
+    "lecture_portefeuille": {
+      "secteur_dominant": string,
+      "persona_dominant": string,
+      "signal_marche_detecte": string,
+      "recommandation_strategique": string,
+      "point_attention_manager": string
     }
-  ]
+  },
+  "leads": [...],
+  "comptes_multi_contacts": [...],
+  "file_attente": [...]
 }
 
-RÈGLES :
-- EXACTEMENT 1 résultat par lead
-- UTILISER row_index fourni
-- PAS d'invention de données absentes
-- PAS de texte hors JSON
-- ANALYSE critique et réaliste (pas optimiste)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RÈGLES NON NÉGOCIABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-LEADS :
+→ leads[] trié par priorite_rank croissant
+→ TRAITER_NOW en premier, SKIP en dernier
+→ Doublons compte → comptes_multi_contacts obligatoire
+→ Blacklisté → SKIP sans analyse
+→ Déjà contacté → NURTURE avec trigger de réactivation
+→ Zéro hallucination — donnée absente = manquant_critique
+→ Zéro texte hors JSON — JSON valide et parseable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LEADS À ANALYSER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${JSON.stringify(csvData, null, 2)}
 `;
 
@@ -164,7 +219,7 @@ ${JSON.stringify(csvData, null, 2)}
       ],
     });
 
-    let text = response.choices?.[0]?.message?.content?.trim() || "";
+    const text = response.choices?.[0]?.message?.content?.trim() || "";
 
     if (!text) {
       return NextResponse.json(
@@ -178,74 +233,25 @@ ${JSON.stringify(csvData, null, 2)}
       parsed = JSON.parse(text);
     } catch {
       return NextResponse.json(
-        {
-          error: "La réponse IA n’est pas un JSON valide.",
-          raw: text,
-        },
+        { error: "La réponse IA n'est pas un JSON valide.", raw: text },
         { status: 500 }
       );
     }
 
-    if (!parsed || !Array.isArray(parsed.results)) {
+    // Nouveau format : on retourne directement le parsed (war_room + leads)
+    if (!parsed || !parsed.war_room || !Array.isArray(parsed.leads)) {
       return NextResponse.json(
         {
-          error: "Format IA invalide : results manquant ou invalide.",
+          error: "Format IA invalide : war_room ou leads manquant.",
           raw: parsed,
         },
         { status: 500 }
       );
     }
 
-    if (parsed.results.length !== rows.length) {
-      return NextResponse.json(
-        {
-          error: `L'IA a retourné ${parsed.results.length} résultats pour ${rows.length} leads.`,
-          raw: parsed,
-        },
-        { status: 500 }
-      );
-    }
-
-    const normalizedResults = [...parsed.results]
-      .sort((a, b) => Number(a.row_index) - Number(b.row_index))
-      .map((item) => ({
-        row_index: Number(item.row_index) || 0,
-        lead_score: Number(item.lead_score) || 0,
-        priority: item.priority || "MAYBE",
-
-        fit_reason: item.fit_reason || "",
-        why_now: item.why_now || "",
-
-        probable_business_pains: Array.isArray(item.probable_business_pains)
-          ? item.probable_business_pains
-          : [],
-
-        detected_opportunities: Array.isArray(item.detected_opportunities)
-          ? item.detected_opportunities
-          : [],
-
-        best_outreach_channel: item.best_outreach_channel || "",
-        channel_reason: item.channel_reason || "",
-
-        email_idea: item.email_idea || "",
-        linkedin_idea: item.linkedin_idea || "",
-        call_opener: item.call_opener || "",
-
-        next_best_action: item.next_best_action || "",
-
-        effort_level: item.effort_level || "medium",
-        confidence_level: item.confidence_level || "medium",
-
-        probable_objection: item.probable_objection || "",
-        objection_handling: item.objection_handling || "",
-      }));
-
-    return NextResponse.json({
-      results: normalizedResults,
-    });
+    return NextResponse.json(parsed);
   } catch (error: any) {
     console.error("analyze-csv error:", error);
-
     return NextResponse.json(
       {
         error:
@@ -253,7 +259,7 @@ ${JSON.stringify(csvData, null, 2)}
           error?.error?.message ||
           error?.response?.data ||
           JSON.stringify(error) ||
-          "Impossible d’analyser le CSV.",
+          "Impossible d'analyser le CSV.",
       },
       { status: 500 }
     );
