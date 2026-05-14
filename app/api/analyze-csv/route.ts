@@ -155,78 +155,7 @@ NURTURE      → Score 35–54 OU déjà contacté récemment
 SKIP         → Score < 35 OU blacklisté OU hors ICP total
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STRUCTURE EXACTE DE CHAQUE LEAD DANS leads[]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Chaque lead DOIT contenir EXACTEMENT ces champs :
-
-{
-  "row_index": number,              // index exact du lead dans le CSV
-  "full_name": string,              // prénom + nom du lead
-  "company": string,                // nom de l'entreprise
-  "role": string,                   // intitulé de poste exact
-  "email": string | null,
-  "linkedin": string | null,
-  "phone": string | null,
-
-  "priorite_rank": number,          // 1 = plus haute priorité
-  "statut": "TRAITER_NOW" | "ENRICHIR" | "SEQUENCER" | "NURTURE" | "SKIP",
-
-  "scoring": {
-    "total": number,                // /100
-    "fit_icp_score": number,        // /25
-    "buying_signals": number,       // /25
-    "revenue_potential": number,    // /20
-    "actionability": number,        // /20
-    "effort_vs_return": number      // /10
-  },
-
-  "icp_match": {
-    "sector_match": boolean,
-    "size_match": boolean,
-    "persona_match": boolean,
-    "geography_match": boolean,
-    "fit_summary": string           // 1 phrase : pourquoi ce lead matche ou non
-  },
-
-  "buying_signals_detected": [      // liste des signaux détectés, [] si aucun
-    {
-      "signal": string,             // ex: "Recrutement SDR en cours"
-      "source": string,             // ex: "LinkedIn" ou "données CSV"
-      "recency": string             // ex: "< 30 jours" ou "inconnu"
-    }
-  ],
-
-  "analysis_dept": string,          // département/équipe cible chez ce lead
-
-  "role_relevance": string,         // explication : ce rôle est-il décideur, champion ou bloqueur ?
-
-  "data_quality": "complete" | "partial" | "minimal",
-  "manquant_critique": [string],    // champs importants absents ex: ["email", "taille entreprise"]
-
-  "need_relevance": string,         // en quoi ce lead a probablement besoin de l'offre
-  "value_hypothesis": string,       // valeur concrète que l'offre lui apporte, en 1-2 phrases
-
-  "discovery_focus": string,        // thème principal à explorer en découverte avec ce lead
-
-  "questions_to_ask": [             // 3 questions de découverte adaptées à ce lead
-    string,
-    string,
-    string
-  ],
-
-  "next_best_action": string,       // action précise et immédiate : canal + message + timing
-  "effort_level": "low" | "medium" | "high" | "no effort",
-  "confidence_level": "high" | "medium" | "low",
-
-  "probable_objection": string,     // objection la plus probable de ce lead
-  "objection_handling": string,     // comment la contrer précisément
-
-  "handoff_note": string            // note de passation pour Account Executive si qualifié
-}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT JSON GLOBAL ATTENDU
+OUTPUT JSON ATTENDU
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
@@ -240,15 +169,8 @@ OUTPUT JSON GLOBAL ATTENDU
       "nurture": number,
       "skip": number
     },
-    "top_3_opportunites": [
-      {
-        "rank": number,
-        "full_name": string,
-        "company": string,
-        "raison": string
-      }
-    ],
-    "alertes": [string],
+    "top_3_opportunites": [...],
+    "alertes": [...],
     "lecture_portefeuille": {
       "secteur_dominant": string,
       "persona_dominant": string,
@@ -257,22 +179,9 @@ OUTPUT JSON GLOBAL ATTENDU
       "point_attention_manager": string
     }
   },
-  "leads": [ /* tableau de leads selon structure ci-dessus */ ],
-  "comptes_multi_contacts": [
-    {
-      "company": string,
-      "contacts": [string],         // liste des noms
-      "strategie_compte": string    // comment approcher ce compte avec plusieurs contacts
-    }
-  ],
-  "file_attente": [
-    {
-      "row_index": number,
-      "full_name": string,
-      "raison_attente": string,
-      "action_requise": string
-    }
-  ]
+  "leads": [...],
+  "comptes_multi_contacts": [...],
+  "file_attente": [...]
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -282,18 +191,15 @@ RÈGLES NON NÉGOCIABLES
 → leads[] trié par priorite_rank croissant
 → TRAITER_NOW en premier, SKIP en dernier
 → Doublons compte → comptes_multi_contacts obligatoire
-→ Blacklisté → SKIP sans analyse approfondie
-→ Déjà contacté → NURTURE avec trigger de réactivation dans next_best_action
-→ Zéro hallucination — donnée absente = déclarée dans manquant_critique
+→ Blacklisté → SKIP sans analyse
+→ Déjà contacté → NURTURE avec trigger de réactivation
+→ Zéro hallucination — donnée absente = manquant_critique
 → Zéro texte hors JSON — JSON valide et parseable
-→ TOUS les champs sont obligatoires — null si donnée absente, jamais 0 par défaut
-→ questions_to_ask = toujours un tableau de 3 strings, jamais vide
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LEADS À ANALYSER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${JSON.stringify(csvData, null, 2)}
-
 `;
 
     const response = await client.chat.completions.create({
