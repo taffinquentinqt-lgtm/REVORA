@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const client = new OpenAI({
-apiKey: process.env.MAMMOUTH_API_KEY,
-baseURL: "https://api.mammouth.ai/v1",
+apiKey: process.env.GROQ_API_KEY,
+baseURL: "https://api.groq.com/openai/v1",
 });
 
 type GeneratedProfile = {
@@ -39,9 +42,9 @@ headers: string[];
 rows: string[][];
 } = body;
 
-if (!process.env.MAMMOUTH_API_KEY) {
+if (!process.env.GROQ_API_KEY) {
 return NextResponse.json(
-{ error: "MAMMOUTH_API_KEY introuvable dans .env.local" },
+{ error: "GROQ_API_KEY introuvable dans .env.local" },
 { status: 500 }
 );
 }
@@ -111,22 +114,25 @@ RÈGLES
 - Répondre uniquement avec du JSON valide
 
 SCORING
-- Fit avec l’ICP : /25
-- Maturité probable : /20
-- Signaux d’achat plausibles : /20
-- Pertinence probable du besoin : /20
-- Actionnabilité commerciale : /15
+Attribue pour chaque lead :
+- fit_icp_score /25
+- role_relevance_score /20
+- data_quality_score /15
+- need_relevance_score /20
+- actionability_score /20
+
+lead_score = somme des 5 sous-scores, total sur 100.
 
 PRIORITÉS
-- GO
-- MAYBE
-- SKIP
+- GO = fit crédible, canal exploitable, angle défendable, effort rentable
+- MAYBE = potentiel réel mais incomplet
+- SKIP = faible fit, faible besoin, rôle éloigné, données faibles ou effort peu rentable
 
 VALEURS AUTORISÉES
-- best_outreach_channel : Email | LinkedIn | Call | Multicanal | Enrichissement d'abord | Nurture léger
+- best_outreach_channel : Email | LinkedIn | Call | Multicanal | Enrichissement d’abord | Nurture léger
 - next_best_action : envoyer un email personnalisé | tenter un message LinkedIn | appeler directement | lancer une séquence multicanale | enrichir avant contact | garder en watchlist | sortir du pipe court terme
-- effort_level : low | medium | high | no effort
 - confidence_level : high | medium | low
+- analysis_depth : basic | advanced
 - opportunity_level : low | medium | high
 - deal_potential : low | medium | high
 - pain_clarity : low | medium | high
@@ -142,18 +148,23 @@ Retourne uniquement un JSON valide avec cette structure :
 "row_index": 0,
 "lead_score": 0,
 "priority": "GO",
+"confidence_level": "high",
+"analysis_depth": "advanced",
+"fit_icp_score": 0,
+"role_relevance_score": 0,
+"data_quality_score": 0,
+"need_relevance_score": 0,
+"actionability_score": 0,
 "fit_reason": "string",
 "why_now": "string",
-"probable_business_pains": "string",
-"detected_opportunities": "string",
+"probable_business_pains": ["string", "string"],
+"detected_opportunities": ["string", "string"],
 "best_outreach_channel": "Email",
 "channel_reason": "string",
 "email_idea": "string",
 "linkedin_idea": "string",
 "call_opener": "string",
 "next_best_action": "envoyer un email personnalisé",
-"effort_level": "low",
-"confidence_level": "high",
 "probable_objection": "string",
 "objection_handling": "string",
 "opportunity_level": "medium",
@@ -164,7 +175,6 @@ Retourne uniquement un JSON valide avec cette structure :
 "discovery_focus": "string",
 "questions_to_ask": ["string", "string"],
 "value_hypothesis": "string",
-"demo_angle": "string",
 "handoff_note": "string"
 }
 ]
@@ -180,7 +190,7 @@ ${JSON.stringify(csvData, null, 2)}
 `;
 
 const response = await client.chat.completions.create({
-model: "gpt-4.1-mini",
+model: "llama-3.3-70b-versatile",
 messages: [
 {
 role: "system",

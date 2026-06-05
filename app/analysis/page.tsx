@@ -1,7 +1,8 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import React, { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
+import ExcelJS from "exceljs";
 import TopNav from "../components/TopNav";
 import ProtectedPage from "../components/ProtectedPage";
 import {
@@ -16,6 +17,7 @@ saveAnalysis,
 saveExport,
 type StoredLead,
 } from "../lib/revora-storage";
+import { getSession, type RevoraPlan } from "../lib/revora-auth";
 
 type CsvPreview = {
 headers: string[];
@@ -202,6 +204,33 @@ if (priority === "MAYBE") return "from-amber-400/25";
 return "from-slate-400/15";
 }
 
+function getCurrentMonthKey() {
+const now = new Date();
+return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthlyUsage(email: string) {
+if (typeof window === "undefined") return { monthKey: getCurrentMonthKey(), usedLeads: 0 };
+const raw = localStorage.getItem(`revora_monthly_usage_${email.toLowerCase()}`);
+const currentMonthKey = getCurrentMonthKey();
+if (!raw) return { monthKey: currentMonthKey, usedLeads: 0 };
+try {
+const parsed = JSON.parse(raw) as { monthKey?: string; usedLeads?: number };
+if (parsed.monthKey !== currentMonthKey) return { monthKey: currentMonthKey, usedLeads: 0 };
+return { monthKey: currentMonthKey, usedLeads: Number(parsed.usedLeads) || 0 };
+} catch {
+return { monthKey: currentMonthKey, usedLeads: 0 };
+}
+}
+
+function saveMonthlyUsage(email: string, usedLeads: number) {
+if (typeof window === "undefined") return;
+localStorage.setItem(
+`revora_monthly_usage_${email.toLowerCase()}`,
+JSON.stringify({ monthKey: getCurrentMonthKey(), usedLeads })
+);
+}
+
 export default function AnalysisPage() {
 const [csvFile, setCsvFile] = useState<File | null>(null);
 const [csvPreview, setCsvPreview] = useState<CsvPreview>(EMPTY_CSV);
@@ -216,15 +245,33 @@ const [isReadingCsv, setIsReadingCsv] = useState(false);
 const [isAnalyzing, setIsAnalyzing] = useState(false);
 const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
 const [searchTerm, setSearchTerm] = useState("");
+const [copiedKey, setCopiedKey] = useState<string | null>(null);
+const [isDragging, setIsDragging] = useState(false);
 const [progress, setProgress] = useState({
 current: 0,
 total: 0,
 });
 
+const [sessionEmail, setSessionEmail] = useState("");
+const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
+const [sessionMonthlyLimit, setSessionMonthlyLimit] = useState<number | null>(200);
+const [sessionIsUnlimited, setSessionIsUnlimited] = useState(false);
+const [usedThisMonth, setUsedThisMonth] = useState(0);
+
 useEffect(() => {
 const storedBrief = getClientBrief();
 const storedProfile = getGeneratedProfile();
 const storedAnalysis = getAnalysis();
+
+const session = getSession();
+if (session) {
+setSessionEmail(session.email);
+setSessionPlan(session.plan);
+setSessionMonthlyLimit(session.monthlyLimit);
+setSessionIsUnlimited(session.isUnlimited);
+const usage = getMonthlyUsage(session.email);
+setUsedThisMonth(usage.usedLeads);
+}
 
 queueMicrotask(() => {
 setBrief(storedBrief);
@@ -297,11 +344,7 @@ return haystack.includes(normalizedSearch);
 .sort((a, b) => b.leadScore - a.leadScore);
 }, [activeFilter, results, searchTerm]);
 
-async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-const file = event.target.files?.[0] ?? null;
-
-if (!file) return;
-
+async function processFile(file: File) {
 if (!file.name.toLowerCase().endsWith(".csv")) {
 setCsvFile(null);
 setCsvPreview(EMPTY_CSV);
@@ -341,6 +384,29 @@ setIsReadingCsv(false);
 }
 }
 
+function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+const file = event.target.files?.[0];
+if (file) processFile(file);
+}
+
+function handleDragOver(event: React.DragEvent<HTMLLabelElement>) {
+event.preventDefault();
+setIsDragging(true);
+}
+
+function handleDragLeave(event: React.DragEvent<HTMLLabelElement>) {
+if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+setIsDragging(false);
+}
+}
+
+function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
+event.preventDefault();
+setIsDragging(false);
+const file = event.dataTransfer.files[0];
+if (file) processFile(file);
+}
+
 async function handleAnalyze() {
 if (!brief) {
 setMessage("Brief introuvable. Configure d'abord ton profil dans Settings.");
@@ -357,9 +423,22 @@ setMessage("Ajoute un CSV valide avant de lancer l'analyse.");
 return;
 }
 
+if (!sessionIsUnlimited && sessionMonthlyLimit !== null) {
+const remaining = Math.max(0, sessionMonthlyLimit - usedThisMonth);
+if (remaining <= 0) {
+setMessage(`Quota mensuel atteint pour le plan ${sessionPlan.toUpperCase()}.`);
+return;
+}
+}
+
+const allowedCount = sessionIsUnlimited
+? csvPreview.rows.length
+: Math.min(csvPreview.rows.length, Math.max(0, (sessionMonthlyLimit ?? 0) - usedThisMonth));
+
+const rowsToAnalyze = csvPreview.rows.slice(0, allowedCount);
 const batchSize = 10;
-const totalBatches = Math.ceil(csvPreview.rows.length / batchSize);
-const allResults: AnalysisResult[] = [];
+const totalBatches = Math.ceil(rowsToAnalyze.length / batchSize);
+const maxConcurrentBatches = 3;
 
 try {
 setIsAnalyzing(true);
@@ -367,26 +446,22 @@ setMessage("");
 setResults([]);
 setProgress({
 current: 0,
-total: csvPreview.rows.length,
+total: rowsToAnalyze.length,
 });
 
-for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+const batchResultsByIndex: AnalysisResult[][] = [];
+let nextBatchIndex = 0;
+
+async function analyzeBatch(batchIndex: number): Promise<AnalysisResult[]> {
 const start = batchIndex * batchSize;
 const end = start + batchSize;
-const batchRows = csvPreview.rows.slice(start, end);
+const batchRows = rowsToAnalyze.slice(start, end);
 
-setMessage(
-`Analyse du lot ${batchIndex + 1}/${totalBatches} - ${start + 1} à ${Math.min(
-end,
-csvPreview.rows.length
-)}.`
-);
+setMessage(`Analyse en cours... lot ${batchIndex + 1}/${totalBatches}`);
 
 const response = await fetch("/api/analyze", {
 method: "POST",
-headers: {
-"Content-Type": "application/json",
-},
+headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 brief,
 generatedProfile,
@@ -402,10 +477,7 @@ try {
 data = rawText ? JSON.parse(rawText) : {};
 } catch {
 throw new Error(
-`La route /api/analyze ne renvoie pas du JSON. Réponse reçue : ${rawText.slice(
-0,
-240
-)}`
+`La route /api/analyze ne renvoie pas du JSON. Réponse reçue : ${rawText.slice(0, 240)}`
 );
 }
 
@@ -421,18 +493,32 @@ if (!Array.isArray(data.results)) {
 throw new Error("Réponse d'analyse invalide: results est manquant.");
 }
 
-const mappedResults = data.results.map((item, index) =>
+return data.results.map((item, index) =>
 mapApiResult(item, batchRows[index] ?? [])
 );
-
-allResults.push(...mappedResults);
-setResults([...allResults]);
-setProgress({
-current: allResults.length,
-total: csvPreview.rows.length,
-});
 }
 
+async function runWorker() {
+while (nextBatchIndex < totalBatches) {
+const batchIndex = nextBatchIndex++;
+batchResultsByIndex[batchIndex] = await analyzeBatch(batchIndex);
+
+const completed = batchResultsByIndex.flatMap((batch) => batch ?? []);
+setResults([...completed]);
+setProgress({
+current: completed.length,
+total: rowsToAnalyze.length,
+});
+}
+}
+
+await Promise.all(
+Array.from({ length: Math.min(maxConcurrentBatches, totalBatches) }, () =>
+runWorker()
+)
+);
+
+const allResults = batchResultsByIndex.flatMap((batch) => batch ?? []);
 const fileName = csvFile?.name || lastFileName || "revora_leads.csv";
 const updatedAt = new Date().toLocaleString("fr-FR");
 
@@ -445,6 +531,13 @@ updatedAt,
 
 setLastFileName(fileName);
 setLastUpdatedAt(updatedAt);
+
+if (!sessionIsUnlimited && sessionEmail) {
+const newUsed = usedThisMonth + allResults.length;
+setUsedThisMonth(newUsed);
+saveMonthlyUsage(sessionEmail, newUsed);
+}
+
 setMessage(`${allResults.length} lead(s) analysés avec succès.`);
 } catch (error: unknown) {
 console.error("analysis page analyze error:", error);
@@ -453,11 +546,16 @@ error instanceof Error ? error.message : "Impossible de terminer l'analyse."
 );
 } finally {
 setIsAnalyzing(false);
-setProgress({
-current: 0,
-total: 0,
-});
+setProgress({ current: 0, total: 0 });
 }
+}
+
+async function handleCopy(key: string, text: string) {
+try {
+await navigator.clipboard.writeText(text);
+setCopiedKey(key);
+setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 2000);
+} catch {}
 }
 
 function handleDownloadCsv() {
@@ -538,6 +636,157 @@ type: "Analyse CSV enrichie",
 setMessage("Export CSV généré.");
 }
 
+async function handleDownloadExcel() {
+if (results.length === 0 || csvPreview.headers.length === 0) {
+setMessage("Aucun résultat à exporter.");
+return;
+}
+
+try {
+setMessage("Préparation du fichier Excel...");
+
+const workbook = new ExcelJS.Workbook();
+const worksheet = workbook.addWorksheet("REVORA Analyse");
+
+const headers = [...csvPreview.headers, ...enrichedHeaders];
+
+const clean = (value: string | number | string[] | null | undefined) => {
+if (Array.isArray(value)) return value.join(" | ");
+return String(value ?? "");
+};
+
+worksheet.addRow(headers);
+
+results.forEach((lead) => {
+worksheet.addRow([
+...csvPreview.headers.map((_, i) => clean(lead.originalRow[i] ?? "")),
+clean(lead.leadScore),
+clean(lead.priority),
+clean(lead.confidenceLevel),
+clean(lead.analysisDepth),
+clean(lead.fitIcpScore),
+clean(lead.roleRelevanceScore),
+clean(lead.dataQualityScore),
+clean(lead.needRelevanceScore),
+clean(lead.actionabilityScore),
+clean(lead.fitReason),
+clean(lead.whyNow),
+clean(lead.probableBusinessPains),
+clean(lead.detectedOpportunities),
+clean(lead.bestOutreachChannel),
+clean(lead.channelReason),
+clean(lead.emailIdea),
+clean(lead.linkedinIdea),
+clean(lead.callOpener),
+clean(lead.nextBestAction),
+clean(lead.probableObjection),
+clean(lead.objectionHandling),
+clean(lead.opportunityLevel),
+clean(lead.dealPotential),
+clean(lead.painClarity),
+clean(lead.urgencyLevel),
+clean(lead.salesReadiness),
+clean(lead.discoveryFocus),
+clean(lead.questionsToAsk),
+clean(lead.valueHypothesis),
+clean(lead.handoffNote),
+]);
+});
+
+const headerRow = worksheet.getRow(1);
+headerRow.eachCell((cell) => {
+cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+cell.border = {
+top: { style: "thin", color: { argb: "FF334155" } },
+left: { style: "thin", color: { argb: "FF334155" } },
+bottom: { style: "thin", color: { argb: "FF334155" } },
+right: { style: "thin", color: { argb: "FF334155" } },
+};
+});
+headerRow.height = 24;
+
+worksheet.views = [{ state: "frozen", ySplit: 1 }];
+worksheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+
+const priorityColumnIndex = headers.indexOf("priority") + 1;
+const scoreColumnIndex = headers.indexOf("lead_score") + 1;
+
+for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+const row = worksheet.getRow(rowNumber);
+const priority = String(row.getCell(priorityColumnIndex).value ?? "");
+
+let fillColor = "FFFFFFFF";
+let textColor = "FF0F172A";
+
+if (priority === "GO") {
+fillColor = "FFE8F5E9";
+textColor = "FF166534";
+} else if (priority === "MAYBE") {
+fillColor = "FFFFF7E6";
+textColor = "FF92400E";
+} else if (priority === "SKIP") {
+fillColor = "FFF3F4F6";
+textColor = "FF374151";
+}
+
+row.eachCell((cell) => {
+cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillColor } };
+cell.font = { color: { argb: textColor } };
+cell.alignment = { vertical: "top", wrapText: true };
+cell.border = {
+top: { style: "thin", color: { argb: "FFE5E7EB" } },
+left: { style: "thin", color: { argb: "FFE5E7EB" } },
+bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+right: { style: "thin", color: { argb: "FFE5E7EB" } },
+};
+});
+
+worksheet.getRow(rowNumber).getCell(scoreColumnIndex).font = { bold: true, color: { argb: textColor } };
+}
+
+worksheet.columns = headers.map((header) => {
+if (header === "lead_score") return { width: 12 };
+if (header === "priority") return { width: 12 };
+if (header === "confidence_level") return { width: 18 };
+if (header === "analysis_depth") return { width: 16 };
+if (header.includes("score")) return { width: 14 };
+if (["fit_reason", "why_now", "channel_reason", "email_idea", "linkedin_idea", "call_opener", "probable_objection", "objection_handling", "discovery_focus", "value_hypothesis", "handoff_note"].includes(header)) return { width: 28 };
+if (["probable_business_pains", "detected_opportunities", "questions_to_ask"].includes(header)) return { width: 34 };
+return { width: Math.max(14, Math.min(24, header.length + 4)) };
+});
+
+const buffer = await workbook.xlsx.writeBuffer();
+const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+const url = URL.createObjectURL(blob);
+const link = document.createElement("a");
+const baseName = (lastFileName || csvFile?.name || "revora_leads").replace(/\.csv$/i, "");
+const fileName = `${baseName}_analyse_revora.xlsx`;
+
+link.href = url;
+link.download = fileName;
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+URL.revokeObjectURL(url);
+
+saveExport({
+fileName,
+format: "XLSX",
+status: "READY",
+createdAt: new Date().toLocaleString("fr-FR"),
+leadCount: results.length,
+type: "Analyse Excel colorée",
+});
+
+setMessage("Export Excel généré ✅");
+} catch (error) {
+console.error("analysis excel export error:", error);
+setMessage("Impossible de générer le fichier Excel.");
+}
+}
+
 function getFilterButtonClasses(filter: ActiveFilter) {
 const isActive = activeFilter === filter;
 
@@ -591,14 +840,14 @@ de passation.
 </section>
 
 <section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-<div className="revora-glass revora-reveal rounded-[32px] border border-white/10 bg-white p-6 text-slate-950 shadow-2xl shadow-slate-950/25 md:p-8">
+<div className="revora-glass revora-reveal rounded-[32px] border border-white/10 bg-slate-900/90 p-6 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-xl md:p-8">
 <div className="flex flex-col gap-5">
 <div>
-<p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+<p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
 Input
 </p>
-<h2 className="mt-2 text-2xl font-semibold">Nouveau CSV</h2>
-<p className="mt-2 text-sm leading-6 text-slate-600">
+<h2 className="mt-2 text-2xl font-semibold text-white">Nouveau CSV</h2>
+<p className="mt-2 text-sm leading-6 text-white/55">
 Le fichier doit contenir une première ligne d&apos;en-têtes. REVORA analyse les
 lignes par lots de 10 pour garder une réponse stable.
 </p>
@@ -606,13 +855,20 @@ lignes par lots de 10 pour garder une réponse stable.
 
 <label
 htmlFor="csvFile"
-className="group grid cursor-pointer gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 transition hover:border-cyan-500 hover:bg-cyan-50/60"
+onDragOver={handleDragOver}
+onDragLeave={handleDragLeave}
+onDrop={handleDrop}
+className={`group grid cursor-pointer gap-3 rounded-3xl border border-dashed p-6 transition ${
+isDragging
+? "border-cyan-400/70 bg-cyan-500/15 scale-[1.01]"
+: "border-white/15 bg-white/5 hover:border-cyan-400/50 hover:bg-cyan-500/10"
+}`}
 >
-<span className="text-sm font-semibold text-slate-950">
-Importer un fichier CSV
+<span className="text-sm font-semibold text-white">
+{isDragging ? "Lâche le fichier ici" : "Importer un fichier CSV"}
 </span>
-<span className="text-sm leading-6 text-slate-500">
-{csvFile?.name || lastFileName || "Glisse mentale: un fichier propre, des colonnes claires, et on part à la chasse aux bons comptes."}
+<span className="text-sm leading-6 text-white/50">
+{csvFile?.name || lastFileName || "Glisse ou clique pour importer — CSV uniquement."}
 </span>
 <input
 id="csvFile"
@@ -623,41 +879,55 @@ className="sr-only"
 />
 </label>
 
-<div className="grid gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-5">
+<div className="grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-5">
 <div className="flex items-center justify-between gap-4">
-<span className="text-sm font-semibold text-slate-800">Statut profil</span>
+<span className="text-sm font-semibold text-white/80">Statut profil</span>
 <span
 className={`rounded-full px-3 py-1 text-xs font-semibold ${
 hasProfile
-? "bg-emerald-100 text-emerald-700"
-: "bg-amber-100 text-amber-800"
+? "bg-emerald-500/15 text-emerald-300"
+: "bg-amber-500/15 text-amber-300"
 }`}
 >
 {hasProfile ? "Profil d'analyse chargé" : "Profil à générer"}
 </span>
 </div>
-<p className="text-sm leading-6 text-slate-600">
+<p className="text-sm leading-6 text-white/55">
 {hasProfile
 ? generatedProfile?.valueProposition
 : "Va dans Settings pour générer le profil d'analyse avant de lancer le scoring."}
 </p>
 </div>
 
+<div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
+<p className="font-medium">
+Plan {sessionPlan.toUpperCase()} ·{" "}
+{sessionIsUnlimited
+? "quota illimité"
+: `${usedThisMonth} / ${sessionMonthlyLimit ?? 0} leads ce mois`}
+</p>
+{!sessionIsUnlimited && sessionMonthlyLimit !== null && (
+<p className="mt-1 text-white/45">
+Restants : {Math.max(0, sessionMonthlyLimit - usedThisMonth)} leads
+</p>
+)}
+</div>
+
 {message && (
-<div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-700">
+<div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm leading-6 text-white/70">
 {message}
 </div>
 )}
 
 {isAnalyzing && progress.total > 0 && (
 <div className="grid gap-2">
-<div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-slate-500">
+<div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-white/40">
 <span>Progression</span>
 <span>
 {progress.current}/{progress.total}
 </span>
 </div>
-<div className="h-3 overflow-hidden rounded-full bg-slate-100">
+<div className="h-3 overflow-hidden rounded-full bg-white/10">
 <div
 className="h-full rounded-full bg-cyan-500 transition-all"
 style={{
@@ -666,6 +936,16 @@ width: `${Math.max(5, (progress.current / progress.total) * 100)}%`,
 />
 </div>
 </div>
+)}
+
+{(!hasProfile || rowCount === 0) && !isAnalyzing && (
+<p className="text-xs text-white/50">
+{!hasProfile && rowCount === 0
+? "Génère un profil dans Settings et ajoute un CSV."
+: !hasProfile
+? "Profil manquant — génère-le dans Settings."
+: "Ajoute un fichier CSV pour lancer l'analyse."}
+</p>
 )}
 
 <div className="flex flex-col gap-3 sm:flex-row">
@@ -681,9 +961,19 @@ className="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white t
 type="button"
 onClick={handleDownloadCsv}
 disabled={results.length === 0}
-className="rounded-2xl border border-slate-200 px-5 py-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+title={results.length === 0 ? "Lancez d'abord une analyse" : undefined}
+className="rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
 >
-Exporter CSV enrichi
+Exporter CSV
+</button>
+<button
+type="button"
+onClick={handleDownloadExcel}
+disabled={results.length === 0}
+title={results.length === 0 ? "Lancez d'abord une analyse" : undefined}
+className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+>
+Exporter Excel coloré
 </button>
 </div>
 </div>
@@ -781,13 +1071,25 @@ Résultats
 </div>
 
 <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+<div className="relative">
 <input
 type="text"
 value={searchTerm}
 onChange={(event) => setSearchTerm(event.target.value)}
 placeholder="Rechercher entreprise, rôle, angle, canal..."
-className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/40"
+className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 pr-10 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-300/40"
 />
+{searchTerm && (
+<button
+type="button"
+onClick={() => setSearchTerm("")}
+className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition hover:text-white/70"
+aria-label="Effacer la recherche"
+>
+✕
+</button>
+)}
+</div>
 
 <div className="flex flex-wrap gap-2">
 {(["ALL", "GO", "MAYBE", "SKIP"] as const).map((filter) => (
@@ -814,31 +1116,47 @@ Les résultats apparaîtront ici après analyse.
 {filteredResults.map((lead, index) => (
 <article
 key={`${lead.originalRow.join("-")}-${index}`}
-className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/40 p-5"
+className={`relative overflow-hidden rounded-3xl border bg-slate-950/60 p-5 ${
+lead.priority === "GO" ? "border-emerald-400/25" : lead.priority === "MAYBE" ? "border-amber-400/20" : "border-white/8"
+}`}
 >
-<div
-className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${getPriorityGlow(
-lead.priority
-)} via-transparent to-transparent`}
-/>
+<div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${getPriorityGlow(lead.priority)} via-transparent to-transparent`} />
+<div className={`absolute left-0 top-0 h-full w-[3px] rounded-l-3xl ${
+lead.priority === "GO" ? "bg-emerald-400" : lead.priority === "MAYBE" ? "bg-amber-400" : "bg-slate-600"
+}`} />
 <div className="relative">
-<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-<div>
-<p className="text-xl font-semibold">
+<div className="flex flex-col gap-4 pl-3 lg:flex-row lg:items-start lg:justify-between">
+<div className="min-w-0 flex-1">
+<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+<p className="text-lg font-semibold text-white">
 {lead.originalRow[0] || `Lead ${index + 1}`}
 </p>
-<p className="mt-2 max-w-4xl text-sm leading-7 text-white/65">
+{lead.originalRow[1] && <p className="text-sm text-white/45">{lead.originalRow[1]}</p>}
+</div>
+<p className="mt-2 max-w-4xl text-sm leading-7 text-white/60">
 {lead.fitReason || "Aucune raison de fit fournie."}
 </p>
 </div>
 
-<div className="flex items-center gap-3">
-<span className="text-3xl font-semibold">{lead.leadScore}</span>
-<span
-className={`rounded-full border px-3 py-1 text-xs font-semibold ${getPriorityClasses(
-lead.priority
-)}`}
->
+<div className="flex shrink-0 items-center gap-3">
+<div className="relative h-14 w-14">
+<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+<circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+<circle
+cx="18" cy="18" r="14"
+fill="none"
+stroke={lead.leadScore >= 70 ? "#34d399" : lead.leadScore >= 40 ? "#fbbf24" : "#64748b"}
+strokeWidth="3"
+strokeDasharray={`${((lead.leadScore / 100) * 87.96).toFixed(2)} 87.96`}
+strokeLinecap="round"
+/>
+</svg>
+<div className="absolute inset-0 flex flex-col items-center justify-center">
+<span className="text-sm font-bold leading-none text-white">{lead.leadScore}</span>
+<span className="text-[9px] text-white/40">/100</span>
+</div>
+</div>
+<span className={`rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider ${getPriorityClasses(lead.priority)}`}>
 {lead.priority}
 </span>
 </div>
@@ -854,9 +1172,9 @@ lead.priority
 <div className="mt-4 grid gap-4 md:grid-cols-2">
 <DetailBlock title="Angles et opportunités" items={lead.detectedOpportunities} fallback={lead.valueHypothesis} />
 <DetailBlock title="Pains probables" items={lead.probableBusinessPains} fallback={lead.discoveryFocus} />
-<DetailBlock title="Email idea" fallback={lead.emailIdea || "Aucun angle email fourni."} />
-<DetailBlock title="LinkedIn idea" fallback={lead.linkedinIdea || "Aucun angle LinkedIn fourni."} />
-<DetailBlock title="Call opener" fallback={lead.callOpener || "Aucun opener fourni."} />
+<DetailBlock title="Email idea" fallback={lead.emailIdea || "Aucun angle email fourni."} copyText={lead.emailIdea || undefined} onCopy={() => handleCopy(`${index}-email`, lead.emailIdea)} copied={copiedKey === `${index}-email`} />
+<DetailBlock title="LinkedIn idea" fallback={lead.linkedinIdea || "Aucun angle LinkedIn fourni."} copyText={lead.linkedinIdea || undefined} onCopy={() => handleCopy(`${index}-linkedin`, lead.linkedinIdea)} copied={copiedKey === `${index}-linkedin`} />
+<DetailBlock title="Call opener" fallback={lead.callOpener || "Aucun opener fourni."} copyText={lead.callOpener || undefined} onCopy={() => handleCopy(`${index}-call`, lead.callOpener)} copied={copiedKey === `${index}-call`} />
 <DetailBlock title="Objection" fallback={`${lead.probableObjection || "-"} ${lead.objectionHandling ? `- ${lead.objectionHandling}` : ""}`} />
 <DetailBlock title="Questions à poser" items={lead.questionsToAsk} fallback="Aucune question fournie." />
 <DetailBlock title="Handoff note" fallback={lead.handoffNote || "Aucune note fournie."} />
@@ -903,14 +1221,31 @@ function DetailBlock({
 title,
 items,
 fallback,
+copyText,
+onCopy,
+copied,
 }: {
 title: string;
 items?: string[];
 fallback?: string;
+copyText?: string;
+onCopy?: () => void;
+copied?: boolean;
 }) {
 return (
 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+<div className="flex items-center justify-between gap-2">
 <p className="text-xs uppercase tracking-wider text-cyan-300">{title}</p>
+{copyText && onCopy && (
+<button
+type="button"
+onClick={onCopy}
+className="text-xs text-white/35 transition hover:text-white/65"
+>
+{copied ? "✓ Copié" : "Copier"}
+</button>
+)}
+</div>
 {items && items.length > 0 ? (
 <ul className="mt-2 grid gap-2 text-sm leading-7 text-white/75">
 {items.map((item, index) => (

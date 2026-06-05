@@ -1,16 +1,19 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const client = new OpenAI({
-apiKey: process.env.MAMMOUTH_API_KEY,
-baseURL: "https://api.mammouth.ai/v1",
+apiKey: process.env.GROQ_API_KEY,
+baseURL: "https://api.groq.com/openai/v1",
 });
 
 export async function POST(req: Request) {
 try {
-if (!process.env.MAMMOUTH_API_KEY) {
+if (!process.env.GROQ_API_KEY) {
 return NextResponse.json(
-{ error: "MAMMOUTH_API_KEY introuvable côté serveur." },
+{ error: "GROQ_API_KEY introuvable côté serveur." },
 { status: 500 }
 );
 }
@@ -69,7 +72,7 @@ Format obligatoire :
 `;
 
 const response = await client.chat.completions.create({
-model: "gpt-4.1-mini",
+model: "llama-3.3-70b-versatile",
 messages: [
 {
 role: "system",

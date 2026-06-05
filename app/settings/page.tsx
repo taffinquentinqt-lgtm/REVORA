@@ -129,7 +129,7 @@ REVORA construit ensuite un cadrage commercial enrichi.
 </div>
 
 <section className="grid gap-8 xl:grid-cols-[1fr_1fr]">
-<div className="revora-glass revora-reveal rounded-[28px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="revora-glass revora-reveal rounded-[28px] border border-white/10 bg-slate-900/90 p-7 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-xl">
 <div className="grid gap-5">
 <div className="grid gap-2">
 <label
@@ -143,7 +143,7 @@ id="offerDescription"
 value={offerDescription}
 onChange={(event) => setOfferDescription(event.target.value)}
 rows={4}
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 placeholder="Exemple : logiciel de prospection B2B, service de génération de pipeline, solution d’optimisation commerciale..."
 />
 </div>
@@ -160,7 +160,7 @@ id="problemSolved"
 value={problemSolved}
 onChange={(event) => setProblemSolved(event.target.value)}
 rows={4}
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 placeholder="Exemple : aide les équipes sales à mieux prioriser leurs leads et à gagner du temps dans la qualification."
 />
 </div>
@@ -179,7 +179,7 @@ value={targetCompanyTypes}
 onChange={(event) =>
 setTargetCompanyTypes(event.target.value)
 }
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 placeholder="Exemple : PME B2B, SaaS, agences, cabinets de conseil..."
 />
 </div>
@@ -193,7 +193,7 @@ id="targetRoles"
 type="text"
 value={targetRoles}
 onChange={(event) => setTargetRoles(event.target.value)}
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 placeholder="Exemple : CEO, Head of Sales, Directeur commercial, Responsable acquisition..."
 />
 </div>
@@ -210,15 +210,21 @@ className="revora-shine revora-lift mt-2 rounded-2xl bg-slate-950 px-5 py-4 text
 </button>
 
 {error && (
-<p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+<p className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
 {error}
 </p>
 )}
 
 {successMessage && (
-<p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-{successMessage}
-</p>
+<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+<p>{successMessage}</p>
+<a
+href="/dashboard"
+className="mt-2 inline-flex items-center gap-1 font-semibold underline decoration-emerald-400/40 transition hover:text-emerald-200"
+>
+Analyser mes leads →
+</a>
+</div>
 )}
 </div>
 </div>

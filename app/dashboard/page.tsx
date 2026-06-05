@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import React, { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import TopNav from "../components/TopNav";
@@ -12,6 +12,39 @@ getGeneratedProfile,
 type RevoraGeneratedProfile,
 } from "../lib/revora-profile";
 import { getSettings, saveAnalysis, saveExport } from "../lib/revora-storage";
+
+function normalizeCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function normalizeForSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+}
+
+function parseCsvText(text: string): CsvPreview {
+  const result = Papa.parse<string[]>(text, {
+    skipEmptyLines: true,
+    delimiter: "",
+  });
+
+  const data = result.data
+    .map((row) => row.map((cell) => normalizeCell(cell)))
+    .filter((row) => row.some((cell) => cell !== ""));
+
+  if (data.length === 0) {
+    return { headers: [], rows: [] };
+  }
+
+  return {
+    headers: data[0],
+    rows: data.slice(1),
+  };
+}
 
 type FormDataState = {
 companyName: string;
@@ -153,9 +186,12 @@ rows: [],
 const [isReadingCsv, setIsReadingCsv] = useState(false);
 const [isAnalyzing, setIsAnalyzing] = useState(false);
 const [enrichedLeads, setEnrichedLeads] = useState<EnrichedLead[]>([]);
+const [expandedLeads, setExpandedLeads] = useState<Set<number>>(new Set());
 const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
 const [searchTerm, setSearchTerm] = useState("");
 const [exportFormat, setExportFormat] = useState("XLSX");
+const [copiedKey, setCopiedKey] = useState<string | null>(null);
+const [isDragging, setIsDragging] = useState(false);
 
 const [sessionEmail, setSessionEmail] = useState("");
 const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
@@ -295,49 +331,7 @@ return haystack.includes(normalizedSearch);
 .sort((a, b) => b.leadScore - a.leadScore);
 }, [enrichedLeads, activeFilter, searchTerm]);
 
-function normalizeCell(value: unknown): string {
-if (value === null || value === undefined) return "";
-return String(value).trim();
-}
-
-function normalizeForSearch(value: string): string {
-return value
-.toLowerCase()
-.normalize("NFD")
-.replace(/[\u0300-\u036f]/g, "")
-.trim();
-}
-
-function parseCsvText(text: string): CsvPreview {
-const result = Papa.parse<string[]>(text, {
-skipEmptyLines: true,
-delimiter: "",
-});
-
-const data = result.data
-.map((row) => row.map((cell) => normalizeCell(cell)))
-.filter((row) => row.some((cell) => cell !== ""));
-
-if (data.length === 0) {
-return { headers: [], rows: [] };
-}
-
-return {
-headers: data[0],
-rows: data.slice(1),
-};
-}
-
-async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-const file = event.target.files?.[0] ?? null;
-
-if (!file) {
-setCsvFile(null);
-setCsvPreview({ headers: [], rows: [] });
-setEnrichedLeads([]);
-return;
-}
-
+async function processFile(file: File) {
 if (!file.name.toLowerCase().endsWith(".csv")) {
 setMessage("Merci d'uploader un fichier CSV.");
 setCsvFile(null);
@@ -350,8 +344,7 @@ try {
 setIsReadingCsv(true);
 setMessage("");
 
-const text = await file.text();
-const parsedCsv = parseCsvText(text);
+const parsedCsv = parseCsvText(await file.text());
 
 if (parsedCsv.headers.length === 0) {
 setCsvFile(null);
@@ -364,9 +357,7 @@ return;
 setCsvFile(file);
 setCsvPreview(parsedCsv);
 setEnrichedLeads([]);
-setMessage(
-`CSV chargé avec succès 🚀 ${parsedCsv.rows.length} ligne(s) détectée(s).`
-);
+setMessage(`CSV chargé ✅ ${parsedCsv.rows.length} ligne(s) détectée(s).`);
 } catch (error) {
 console.error("Erreur lecture CSV :", error);
 setCsvFile(null);
@@ -376,6 +367,37 @@ setMessage("Impossible de lire le fichier CSV.");
 } finally {
 setIsReadingCsv(false);
 }
+}
+
+function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+const file = event.target.files?.[0];
+if (file) processFile(file);
+}
+
+function handleDragOver(event: React.DragEvent<HTMLLabelElement>) {
+event.preventDefault();
+setIsDragging(true);
+}
+
+function handleDragLeave(event: React.DragEvent<HTMLLabelElement>) {
+if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+setIsDragging(false);
+}
+}
+
+function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
+event.preventDefault();
+setIsDragging(false);
+const file = event.dataTransfer.files[0];
+if (file) processFile(file);
+}
+
+async function handleCopy(key: string, text: string) {
+try {
+await navigator.clipboard.writeText(text);
+setCopiedKey(key);
+setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 2000);
+} catch {}
 }
 
 async function handleAdvancedAnalysis() {
@@ -925,10 +947,10 @@ Plan actif
 </div>
 </div>
 
-<div className="revora-glass revora-reveal revora-reveal-delay-1 rounded-[32px] border border-white/10 bg-white p-7 text-slate-900 shadow-2xl shadow-slate-950/30">
+<div className="revora-glass revora-reveal revora-reveal-delay-1 rounded-[32px] border border-white/10 bg-slate-900/90 p-7 text-white shadow-2xl shadow-slate-950/50 backdrop-blur-xl">
 <div className="mb-6">
-<p className="text-sm font-medium text-blue-600">Analyse CSV</p>
-<h2 className="mt-1 text-2xl font-semibold">
+<p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300/90">Analyse CSV</p>
+<h2 className="mt-1 text-2xl font-semibold text-white">
 Lance l’analyse forte
 </h2>
 </div>
@@ -949,7 +971,7 @@ setFormData((prev) => ({
 companyName: event.target.value,
 }))
 }
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 />
 </div>
 
@@ -971,7 +993,7 @@ companyDescription: event.target.value,
 }))
 }
 rows={3}
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 />
 </div>
 
@@ -993,7 +1015,7 @@ offerDescription: event.target.value,
 }))
 }
 rows={3}
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 />
 </div>
 
@@ -1012,35 +1034,45 @@ setFormData((prev) => ({
 target: event.target.value,
 }))
 }
-className="revora-lift rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+className="revora-lift rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/50"
 />
 </div>
 
 <div className="grid gap-2">
-<label htmlFor="csvFile" className="text-sm font-semibold">
-Upload CSV
-</label>
+<label
+htmlFor="csvFile"
+onDragOver={handleDragOver}
+onDragLeave={handleDragLeave}
+onDrop={handleDrop}
+className={`grid cursor-pointer gap-2 rounded-2xl border border-dashed p-4 transition ${
+isDragging
+? "border-cyan-400/70 bg-cyan-500/15"
+: "border-white/15 bg-slate-800/30 hover:border-cyan-400/40 hover:bg-slate-800/50"
+}`}
+>
+<span className="text-sm font-semibold text-white">
+{isDragging ? "Lâche le fichier ici" : (csvFile?.name || "Upload CSV — glisse ou clique")}
+</span>
+{!csvFile && !isDragging && (
+<span className="text-xs text-white/40">Format .csv uniquement</span>
+)}
 <input
 id="csvFile"
 name="csvFile"
 type="file"
 accept=".csv"
 onChange={handleFileChange}
-className="revora-lift rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm"
+className="sr-only"
 />
-{csvFile && (
-<p className="text-sm text-slate-500">
-Fichier sélectionné : {csvFile.name}
-</p>
-)}
+</label>
 {isReadingCsv && (
-<p className="text-sm text-slate-500">
+<p className="text-sm text-white/50">
 Lecture du CSV en cours...
 </p>
 )}
 </div>
 
-<div className="revora-moving-band rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+<div className="revora-moving-band rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
 <p>Export : {exportFormat}</p>
 <p className="mt-2 font-medium">
 Plan {sessionPlan.toUpperCase()} ·{" "}
@@ -1054,6 +1086,19 @@ Restants ce mois : {remainingThisMonth ?? 0} leads
 </p>
 )}
 </div>
+
+{!generatedProfile && !isAnalyzing && (
+<div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm">
+<p className="font-semibold text-amber-200">Profil d'analyse manquant</p>
+<p className="mt-1 text-amber-200/75">
+Génère ton profil dans{" "}
+<a href="/settings" className="underline transition hover:text-amber-100">
+Settings
+</a>{" "}
+avant de lancer l'analyse.
+</p>
+</div>
+)}
 
 <div className="grid gap-3 pt-2 md:grid-cols-[1fr_auto]">
 <button
@@ -1069,7 +1114,7 @@ className="revora-shine revora-lift rounded-2xl bg-slate-950 px-5 py-4 text-base
 <button
 type="button"
 onClick={downloadEnrichedCsv}
-className="revora-lift rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 transition hover:bg-slate-50"
+className="revora-lift rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-base font-semibold text-white transition hover:bg-white/15"
 >
 Télécharger Excel
 </button>
@@ -1138,7 +1183,7 @@ className="rounded-xl bg-slate-900/70 px-3 py-2"
 
 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-white/55">
 <span>
-{analysisProgress.current} / {analysisProgress.total} leads traites
+{analysisProgress.current} / {analysisProgress.total} leads traités
 </span>
 <span className="inline-flex items-center gap-1">
 Traitement
@@ -1153,7 +1198,7 @@ Traitement
 )}
 
 {message && (
-<p className="rounded-2xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+<p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
 {message}
 </p>
 )}
@@ -1203,13 +1248,25 @@ SKIP
 </div>
 
 <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+<div className="relative">
 <input
 type="text"
 placeholder="Rechercher un lead, une entreprise, un angle..."
 value={searchTerm}
 onChange={(event) => setSearchTerm(event.target.value)}
-className="revora-lift rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/35"
+className="revora-lift w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-10 text-white outline-none placeholder:text-white/35"
 />
+{searchTerm && (
+<button
+type="button"
+onClick={() => setSearchTerm("")}
+className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition hover:text-white/70"
+aria-label="Effacer la recherche"
+>
+✕
+</button>
+)}
+</div>
 
 <div className="flex flex-wrap gap-2">
 {(["ALL", "GO", "MAYBE", "SKIP"] as const).map((filter) => (
@@ -1233,62 +1290,136 @@ filter
 </div>
 
 <div className="grid gap-4">
-{filteredLeads.map((lead, index) => (
+{filteredLeads.map((lead, index) => {
+const isExpanded = expandedLeads.has(index);
+const priorityAccent = lead.priority === "GO" ? "border-emerald-400/30" : lead.priority === "MAYBE" ? "border-amber-400/25" : "border-white/8";
+const priorityBar = lead.priority === "GO" ? "bg-emerald-400" : lead.priority === "MAYBE" ? "bg-amber-400" : "bg-slate-600";
+const scoreStroke = lead.leadScore >= 70 ? "#34d399" : lead.leadScore >= 40 ? "#fbbf24" : "#64748b";
+const scoreDash = ((lead.leadScore / 100) * 87.96).toFixed(2);
+return (
 <div
 key={index}
-className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-5"
+className={`revora-lift revora-card-premium revora-card-appear relative overflow-hidden rounded-2xl border bg-slate-950/60 ${priorityAccent}`}
 >
-<div className="mb-4 flex items-start justify-between gap-4">
-<div>
-<p className="text-lg font-semibold text-white">
+<div className={`absolute left-0 top-0 h-full w-[3px] ${priorityBar}`} />
+{/* Card header — always visible */}
+<button
+type="button"
+onClick={() =>
+setExpandedLeads((prev) => {
+const next = new Set(prev);
+if (next.has(index)) next.delete(index);
+else next.add(index);
+return next;
+})
+}
+className="flex w-full items-start justify-between gap-4 py-5 pl-7 pr-5 text-left"
+>
+<div className="min-w-0 flex-1">
+<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+<p className="text-base font-semibold text-white">
 {lead.originalRow[0] || "Lead"}
 </p>
-<p className="mt-2 text-sm text-white/60">
+{lead.originalRow[1] && (
+<p className="text-sm text-white/45">{lead.originalRow[1]}</p>
+)}
+{lead.originalRow[2] && (
+<p className="text-sm text-white/35">{lead.originalRow[2]}</p>
+)}
+</div>
+<p className="mt-1.5 line-clamp-2 text-sm leading-6 text-white/55">
 {lead.fitReason}
 </p>
-
-<div className="mt-3 flex flex-wrap gap-2">
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Confiance : {lead.confidenceLevel}
+<div className="mt-3 flex flex-wrap gap-1.5">
+{lead.bestOutreachChannel && (
+<span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-white/60">
+{lead.bestOutreachChannel}
 </span>
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Analyse : {lead.analysisDepth}
+)}
+<span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+lead.confidenceLevel === "high" ? "bg-emerald-500/10 text-emerald-300" :
+lead.confidenceLevel === "medium" ? "bg-amber-500/10 text-amber-300" :
+"bg-white/5 text-white/45"
+}`}>
+{lead.confidenceLevel === "high" ? "Confiance haute" : lead.confidenceLevel === "medium" ? "Confiance moyenne" : "Confiance faible"}
 </span>
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Opportunity : {lead.opportunityLevel}
+<span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+lead.opportunityLevel === "high" ? "bg-blue-500/10 text-blue-300" :
+lead.opportunityLevel === "medium" ? "bg-white/8 text-white/55" :
+"bg-white/5 text-white/35"
+}`}>
+{lead.opportunityLevel === "high" ? "Opportunité forte" : lead.opportunityLevel === "medium" ? "Opportunité moyenne" : "Faible opportunité"}
 </span>
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Readiness : {lead.salesReadiness}
+<span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+lead.salesReadiness === "ready_for_meeting" ? "bg-cyan-500/10 text-cyan-300" :
+lead.salesReadiness === "worth_testing" ? "bg-white/8 text-white/55" :
+"bg-white/5 text-white/35"
+}`}>
+{lead.salesReadiness === "ready_for_meeting" ? "Prêt meeting" : lead.salesReadiness === "worth_testing" ? "À tester" : "Non prêt"}
 </span>
 </div>
 </div>
 
+<div className="flex shrink-0 flex-col items-end gap-3">
 <div className="flex items-center gap-3">
-<span className="text-xl font-semibold text-white">
-{lead.leadScore}
-</span>
-<span
-className={`rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClasses(
-lead.priority
-)}`}
->
+<div className="relative h-12 w-12">
+<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+<circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+<circle
+cx="18" cy="18" r="14"
+fill="none"
+stroke={scoreStroke}
+strokeWidth="3"
+strokeDasharray={`${scoreDash} 87.96`}
+strokeLinecap="round"
+/>
+</svg>
+<div className="absolute inset-0 flex items-center justify-center">
+<span className="text-xs font-bold text-white">{lead.leadScore}</span>
+</div>
+</div>
+<span className={`rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider ${getPriorityClasses(lead.priority)}`}>
 {lead.priority}
 </span>
 </div>
+<span className="text-xs text-white/25">
+{isExpanded ? "▲" : "▼"}
+</span>
 </div>
+</button>
 
-<div className="mt-4 grid gap-4 md:grid-cols-2">
+{/* Expanded details */}
+{isExpanded && (
+<div className="border-t border-white/10 px-5 pb-5 pt-4">
+<div className="grid gap-4 md:grid-cols-2">
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
 <p className="text-xs uppercase tracking-wider text-cyan-300">
 Scores détaillés
 </p>
-<ul className="mt-2 grid gap-2 text-sm leading-7 text-white/80">
-<li>Fit ICP : {lead.fitIcpScore}/25</li>
-<li>Rôle : {lead.roleRelevanceScore}/20</li>
-<li>Qualité data : {lead.dataQualityScore}/15</li>
-<li>Besoin : {lead.needRelevanceScore}/20</li>
-<li>Actionnabilité : {lead.actionabilityScore}/20</li>
-</ul>
+<div className="mt-3 grid gap-2.5">
+{(
+[
+{ label: "Fit ICP", value: lead.fitIcpScore, max: 25 },
+{ label: "Rôle", value: lead.roleRelevanceScore, max: 20 },
+{ label: "Qualité data", value: lead.dataQualityScore, max: 15 },
+{ label: "Besoin", value: lead.needRelevanceScore, max: 20 },
+{ label: "Actionnabilité", value: lead.actionabilityScore, max: 20 },
+] as const
+).map(({ label, value, max }) => (
+<div key={label} className="grid gap-1">
+<div className="flex items-center justify-between text-xs text-white/70">
+<span>{label}</span>
+<span className="font-semibold text-white/90">{value}/{max}</span>
+</div>
+<div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+<div
+className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 transition-all duration-500"
+style={{ width: `${Math.round((value / max) * 100)}%` }}
+/>
+</div>
+</div>
+))}
+</div>
 </div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -1301,9 +1432,7 @@ Lecture senior
 <li>Urgency : {lead.urgencyLevel}</li>
 </ul>
 </div>
-</div>
 
-<div className="mt-4 grid gap-4 md:grid-cols-2">
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
 <p className="text-xs uppercase tracking-wider text-cyan-300">
 Why now
@@ -1320,7 +1449,7 @@ Canal recommandé
 <p className="mt-2 text-sm leading-7 text-white/80">
 {lead.bestOutreachChannel}
 </p>
-<p className="mt-2 text-sm leading-7 text-white/60">
+<p className="mt-1 text-sm leading-7 text-white/60">
 {lead.channelReason}
 </p>
 </div>
@@ -1344,30 +1473,51 @@ Opportunities
 </div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Email idea
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.emailIdea}
-</p>
+<div className="flex items-center justify-between gap-2">
+<p className="text-xs uppercase tracking-wider text-cyan-300">Email idea</p>
+{lead.emailIdea && (
+<button
+type="button"
+onClick={() => handleCopy(`${index}-email`, lead.emailIdea)}
+className="text-xs text-white/35 transition hover:text-white/65"
+>
+{copiedKey === `${index}-email` ? "✓ Copié" : "Copier"}
+</button>
+)}
+</div>
+<p className="mt-2 text-sm leading-7 text-white/80">{lead.emailIdea}</p>
 </div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-LinkedIn idea
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.linkedinIdea}
-</p>
+<div className="flex items-center justify-between gap-2">
+<p className="text-xs uppercase tracking-wider text-cyan-300">LinkedIn idea</p>
+{lead.linkedinIdea && (
+<button
+type="button"
+onClick={() => handleCopy(`${index}-linkedin`, lead.linkedinIdea)}
+className="text-xs text-white/35 transition hover:text-white/65"
+>
+{copiedKey === `${index}-linkedin` ? "✓ Copié" : "Copier"}
+</button>
+)}
+</div>
+<p className="mt-2 text-sm leading-7 text-white/80">{lead.linkedinIdea}</p>
 </div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-<p className="text-xs uppercase tracking-wider text-cyan-300">
-Call opener
-</p>
-<p className="mt-2 text-sm leading-7 text-white/80">
-{lead.callOpener}
-</p>
+<div className="flex items-center justify-between gap-2">
+<p className="text-xs uppercase tracking-wider text-cyan-300">Call opener</p>
+{lead.callOpener && (
+<button
+type="button"
+onClick={() => handleCopy(`${index}-call`, lead.callOpener)}
+className="text-xs text-white/35 transition hover:text-white/65"
+>
+{copiedKey === `${index}-call` ? "✓ Copié" : "Copier"}
+</button>
+)}
+</div>
+<p className="mt-2 text-sm leading-7 text-white/80">{lead.callOpener}</p>
 </div>
 
 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -1435,17 +1585,11 @@ Handoff note
 </p>
 </div>
 </div>
-
-<div className="mt-4 flex flex-wrap gap-2">
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Opportunity : {lead.opportunityLevel}
-</span>
-<span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-Readiness : {lead.salesReadiness}
-</span>
 </div>
+)}
 </div>
-))}
+);
+})}
 </div>
 </section>
 )}
