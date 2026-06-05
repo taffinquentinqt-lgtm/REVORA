@@ -17,7 +17,6 @@ saveAnalysis,
 saveExport,
 type StoredLead,
 } from "../lib/revora-storage";
-import { getSession, type RevoraPlan } from "../lib/revora-auth";
 
 type CsvPreview = {
 headers: string[];
@@ -204,32 +203,6 @@ if (priority === "MAYBE") return "from-amber-400/25";
 return "from-slate-400/15";
 }
 
-function getCurrentMonthKey() {
-const now = new Date();
-return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function getMonthlyUsage(email: string) {
-if (typeof window === "undefined") return { monthKey: getCurrentMonthKey(), usedLeads: 0 };
-const raw = localStorage.getItem(`revora_monthly_usage_${email.toLowerCase()}`);
-const currentMonthKey = getCurrentMonthKey();
-if (!raw) return { monthKey: currentMonthKey, usedLeads: 0 };
-try {
-const parsed = JSON.parse(raw) as { monthKey?: string; usedLeads?: number };
-if (parsed.monthKey !== currentMonthKey) return { monthKey: currentMonthKey, usedLeads: 0 };
-return { monthKey: currentMonthKey, usedLeads: Number(parsed.usedLeads) || 0 };
-} catch {
-return { monthKey: currentMonthKey, usedLeads: 0 };
-}
-}
-
-function saveMonthlyUsage(email: string, usedLeads: number) {
-if (typeof window === "undefined") return;
-localStorage.setItem(
-`revora_monthly_usage_${email.toLowerCase()}`,
-JSON.stringify({ monthKey: getCurrentMonthKey(), usedLeads })
-);
-}
 
 export default function AnalysisPage() {
 const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -252,26 +225,12 @@ current: 0,
 total: 0,
 });
 
-const [sessionEmail, setSessionEmail] = useState("");
-const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
-const [sessionMonthlyLimit, setSessionMonthlyLimit] = useState<number | null>(200);
-const [sessionIsUnlimited, setSessionIsUnlimited] = useState(false);
-const [usedThisMonth, setUsedThisMonth] = useState(0);
 
 useEffect(() => {
 const storedBrief = getClientBrief();
 const storedProfile = getGeneratedProfile();
 const storedAnalysis = getAnalysis();
 
-const session = getSession();
-if (session) {
-setSessionEmail(session.email);
-setSessionPlan(session.plan);
-setSessionMonthlyLimit(session.monthlyLimit);
-setSessionIsUnlimited(session.isUnlimited);
-const usage = getMonthlyUsage(session.email);
-setUsedThisMonth(usage.usedLeads);
-}
 
 queueMicrotask(() => {
 setBrief(storedBrief);
@@ -423,19 +382,7 @@ setMessage("Ajoute un CSV valide avant de lancer l'analyse.");
 return;
 }
 
-if (!sessionIsUnlimited && sessionMonthlyLimit !== null) {
-const remaining = Math.max(0, sessionMonthlyLimit - usedThisMonth);
-if (remaining <= 0) {
-setMessage(`Quota mensuel atteint pour le plan ${sessionPlan.toUpperCase()}.`);
-return;
-}
-}
-
-const allowedCount = sessionIsUnlimited
-? csvPreview.rows.length
-: Math.min(csvPreview.rows.length, Math.max(0, (sessionMonthlyLimit ?? 0) - usedThisMonth));
-
-const rowsToAnalyze = csvPreview.rows.slice(0, allowedCount);
+const rowsToAnalyze = csvPreview.rows;
 const batchSize = 5;
 const totalBatches = Math.ceil(rowsToAnalyze.length / batchSize);
 const maxConcurrentBatches = 3;
@@ -531,12 +478,6 @@ updatedAt,
 
 setLastFileName(fileName);
 setLastUpdatedAt(updatedAt);
-
-if (!sessionIsUnlimited && sessionEmail) {
-const newUsed = usedThisMonth + allResults.length;
-setUsedThisMonth(newUsed);
-saveMonthlyUsage(sessionEmail, newUsed);
-}
 
 setMessage(`${allResults.length} lead(s) analysés avec succès.`);
 } catch (error: unknown) {
@@ -897,20 +838,6 @@ hasProfile
 ? generatedProfile?.valueProposition
 : "Va dans Settings pour générer le profil d'analyse avant de lancer le scoring."}
 </p>
-</div>
-
-<div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
-<p className="font-medium">
-Plan {sessionPlan.toUpperCase()} ·{" "}
-{sessionIsUnlimited
-? "quota illimité"
-: `${usedThisMonth} / ${sessionMonthlyLimit ?? 0} leads ce mois`}
-</p>
-{!sessionIsUnlimited && sessionMonthlyLimit !== null && (
-<p className="mt-1 text-white/45">
-Restants : {Math.max(0, sessionMonthlyLimit - usedThisMonth)} leads
-</p>
-)}
 </div>
 
 {message && (

@@ -101,73 +101,6 @@ valueHypothesis: string;
 handoffNote: string;
 };
 
-function getCurrentMonthKey() {
-const now = new Date();
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, "0");
-return `${year}-${month}`;
-}
-
-function getUsageStorageKey(email: string) {
-return `revora_monthly_usage_${email.toLowerCase()}`;
-}
-
-function getMonthlyUsage(email: string) {
-if (typeof window === "undefined") {
-return {
-monthKey: getCurrentMonthKey(),
-usedLeads: 0,
-};
-}
-
-const storageKey = getUsageStorageKey(email);
-const raw = localStorage.getItem(storageKey);
-const currentMonthKey = getCurrentMonthKey();
-
-if (!raw) {
-return {
-monthKey: currentMonthKey,
-usedLeads: 0,
-};
-}
-
-try {
-const parsed = JSON.parse(raw) as {
-monthKey?: string;
-usedLeads?: number;
-};
-
-if (parsed.monthKey !== currentMonthKey) {
-return {
-monthKey: currentMonthKey,
-usedLeads: 0,
-};
-}
-
-return {
-monthKey: currentMonthKey,
-usedLeads: Number(parsed.usedLeads) || 0,
-};
-} catch {
-return {
-monthKey: currentMonthKey,
-usedLeads: 0,
-};
-}
-}
-
-function saveMonthlyUsage(email: string, usedLeads: number) {
-if (typeof window === "undefined") return;
-
-const storageKey = getUsageStorageKey(email);
-localStorage.setItem(
-storageKey,
-JSON.stringify({
-monthKey: getCurrentMonthKey(),
-usedLeads,
-})
-);
-}
 
 export default function DashboardPage() {
 const [formData, setFormData] = useState<FormDataState>({
@@ -193,13 +126,7 @@ const [exportFormat, setExportFormat] = useState("XLSX");
 const [copiedKey, setCopiedKey] = useState<string | null>(null);
 const [isDragging, setIsDragging] = useState(false);
 
-const [sessionEmail, setSessionEmail] = useState("");
 const [sessionPlan, setSessionPlan] = useState<RevoraPlan>("demo");
-const [sessionMonthlyLimit, setSessionMonthlyLimit] = useState<number | null>(
-200
-);
-const [sessionIsUnlimited, setSessionIsUnlimited] = useState(false);
-const [usedThisMonth, setUsedThisMonth] = useState(0);
 
 const [generatedProfile, setGeneratedProfile] =
 useState<RevoraGeneratedProfile | null>(null);
@@ -220,13 +147,7 @@ setExportFormat(settings.exportFormat || "XLSX");
 const session = getSession();
 
 if (session) {
-setSessionEmail(session.email);
 setSessionPlan(session.plan);
-setSessionMonthlyLimit(session.monthlyLimit);
-setSessionIsUnlimited(session.isUnlimited);
-
-const usage = getMonthlyUsage(session.email);
-setUsedThisMonth(usage.usedLeads);
 }
 
 const brief = getClientBrief();
@@ -247,11 +168,6 @@ brief.targetRoles ? ` | Profils cibles : ${brief.targetRoles}` : ""
 }, []);
 
 const rowCount = useMemo(() => csvPreview.rows.length, [csvPreview.rows]);
-
-const remainingThisMonth = useMemo(() => {
-if (sessionIsUnlimited || sessionMonthlyLimit === null) return null;
-return Math.max(0, sessionMonthlyLimit - usedThisMonth);
-}, [sessionIsUnlimited, sessionMonthlyLimit, usedThisMonth]);
 
 const stats = useMemo(() => {
 const go = enrichedLeads.filter((lead) => lead.priority === "GO").length;
@@ -411,26 +327,7 @@ setMessage("Merci d’ajouter un fichier CSV valide.");
 return;
 }
 
-if (!sessionEmail) {
-setMessage("Aucune session active détectée.");
-return;
-}
-
-if (!sessionIsUnlimited && remainingThisMonth !== null && remainingThisMonth <= 0) {
-setMessage(`Quota mensuel atteint pour le plan ${sessionPlan.toUpperCase()}.`);
-return;
-}
-
-const allowedLeadCount = sessionIsUnlimited
-? csvPreview.rows.length
-: Math.min(csvPreview.rows.length, remainingThisMonth ?? 0);
-
-const rowsToAnalyze = csvPreview.rows.slice(0, allowedLeadCount);
-
-if (rowsToAnalyze.length === 0) {
-setMessage("Aucune ligne disponible pour l’analyse.");
-return;
-}
+const rowsToAnalyze = csvPreview.rows;
 
 const batchSize = 5;
 const totalBatches = Math.ceil(rowsToAnalyze.length / batchSize);
@@ -601,12 +498,6 @@ leads: allResults,
 fileName: csvFile?.name || "revora_leads.csv",
 updatedAt: new Date().toLocaleString("fr-FR"),
 });
-
-if (!sessionIsUnlimited) {
-const newUsed = usedThisMonth + allResults.length;
-setUsedThisMonth(newUsed);
-saveMonthlyUsage(sessionEmail, newUsed);
-}
 
 setMessage(
 `Analyse CSV terminée ✅ ${allResults.length} lead(s) enrichi(s).`
@@ -1073,18 +964,7 @@ Lecture du CSV en cours...
 </div>
 
 <div className="revora-moving-band rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-<p>Export : {exportFormat}</p>
-<p className="mt-2 font-medium">
-Plan {sessionPlan.toUpperCase()} ·{" "}
-{sessionIsUnlimited
-? "quota mensuel illimité"
-: `${usedThisMonth}/${sessionMonthlyLimit ?? 0} leads utilisés ce mois`}
-</p>
-{!sessionIsUnlimited && (
-<p className="mt-1">
-Restants ce mois : {remainingThisMonth ?? 0} leads
-</p>
-)}
+<p>Export : {exportFormat} · Plan {sessionPlan.toUpperCase()}</p>
 </div>
 
 {!generatedProfile && !isAnalyzing && (
