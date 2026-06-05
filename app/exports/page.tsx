@@ -31,8 +31,19 @@ Retrouve ici l’historique de tes exports générés.
 
 <div className="mt-8 grid gap-4">
 {exportsList.length === 0 ? (
-<div className="revora-lift rounded-2xl border border-white/10 bg-white/5 p-5 text-white/70">
-Aucun export disponible pour le moment.
+<div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
+<p className="text-white/60">Aucun export pour le moment.</p>
+<p className="mt-2 text-sm text-white/40">
+Lance une analyse depuis{" "}
+<a href="/dashboard" className="text-cyan-300/80 underline transition hover:text-cyan-200">
+Dashboard
+</a>{" "}
+ou{" "}
+<a href="/analysis" className="text-cyan-300/80 underline transition hover:text-cyan-200">
+Analysis
+</a>
+, puis télécharge le résultat.
+</p>
 </div>
 ) : (
 exportsList.map((item, index) => (

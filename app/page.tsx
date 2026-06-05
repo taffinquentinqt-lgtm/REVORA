@@ -62,10 +62,10 @@ export default function HomePage() {
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-8 text-white/72 md:text-lg">
-                REVORA aide les &eacute;quipes commerciales B2B &agrave;
+                REVORA aide les équipes commerciales B2B à
                 analyser, prioriser et exploiter leurs leads plus
-                intelligemment. Score, priorit&eacute;, angle d&apos;approche,
-                canal recommand&eacute; et next best action.
+                intelligemment. Score, priorité, angle d&apos;approche,
+                canal recommandé et next best action.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -73,7 +73,7 @@ export default function HomePage() {
                   href="/login"
                   className="revora-shine revora-lift rounded-2xl bg-white px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
                 >
-                  Acc&eacute;der &agrave; REVORA
+                  Accéder à REVORA
                 </Link>
 
                 <Link
@@ -202,7 +202,7 @@ export default function HomePage() {
             Why REVORA
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
-            Un outil pens&eacute; pour la pr&eacute;paration commerciale
+            Un outil pensé pour la préparation commerciale
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-white/65">
             REVORA ne remplace pas un CRM. REVORA transforme une base brute en
@@ -210,29 +210,37 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="revora-lift rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <p className="text-lg font-semibold text-white">Prioriser</p>
-            <p className="mt-3 text-sm leading-7 text-white/65">
-              Identifier plus vite les leads qui m&eacute;ritent vraiment du
-              temps commercial maintenant.
+        <div className="grid gap-5 md:grid-cols-3">
+          <div className="revora-lift group rounded-[28px] border border-white/10 bg-white/5 p-7 backdrop-blur-xl transition-all hover:border-cyan-400/20 hover:bg-white/[0.07]">
+            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-lg">
+              ⚡
+            </div>
+            <p className="text-base font-semibold text-white">Prioriser</p>
+            <p className="mt-3 text-sm leading-7 text-white/60">
+              Identifie en un coup d'œil les leads qui méritent ton temps
+              maintenant. Score, GO / MAYBE / SKIP et logique de veto.
             </p>
           </div>
 
-          <div className="revora-lift rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <p className="text-lg font-semibold text-white">Structurer</p>
-            <p className="mt-3 text-sm leading-7 text-white/65">
-              Donner un cadre clair &agrave; la prospection : score,
-              priorit&eacute;, canal et next best action.
+          <div className="revora-lift group rounded-[28px] border border-white/10 bg-white/5 p-7 backdrop-blur-xl transition-all hover:border-emerald-400/20 hover:bg-white/[0.07]">
+            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-lg">
+              🎯
+            </div>
+            <p className="text-base font-semibold text-white">Structurer</p>
+            <p className="mt-3 text-sm leading-7 text-white/60">
+              Canal recommandé, angle d'approche, objections, questions à
+              poser et next best action — pour chaque lead.
             </p>
           </div>
 
-          <div className="revora-lift rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <p className="text-lg font-semibold text-white">Executer</p>
-            <p className="mt-3 text-sm leading-7 text-white/65">
-              Exporter rapidement un fichier enrichi pr&ecirc;t &agrave;
-              &ecirc;tre utilis&eacute; par une &eacute;quipe SDR, Biz Dev ou
-              AE.
+          <div className="revora-lift group rounded-[28px] border border-white/10 bg-white/5 p-7 backdrop-blur-xl transition-all hover:border-blue-400/20 hover:bg-white/[0.07]">
+            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-400/10 text-lg">
+              📤
+            </div>
+            <p className="text-base font-semibold text-white">Exécuter</p>
+            <p className="mt-3 text-sm leading-7 text-white/60">
+              Export Excel enrichi prêt à l'emploi pour ton équipe SDR,
+              Biz Dev ou AE — coloré par priorité.
             </p>
           </div>
         </div>
@@ -251,7 +259,7 @@ export default function HomePage() {
               Parle-nous de ton besoin
             </h2>
             <p className="mt-4 max-w-xl text-white/65">
-              Envoie un message a l&apos;equipe REVORA. Il sera adresse a
+              Envoie un message à l&apos;équipe REVORA. Il sera adressé à
               qtntfnns@gmail.com.
             </p>
             <a
