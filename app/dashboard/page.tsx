@@ -432,7 +432,7 @@ setMessage("Aucune ligne disponible pour l’analyse.");
 return;
 }
 
-const batchSize = 10;
+const batchSize = 5;
 const totalBatches = Math.ceil(rowsToAnalyze.length / batchSize);
 
 try {

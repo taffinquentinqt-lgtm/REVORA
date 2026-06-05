@@ -436,7 +436,7 @@ const allowedCount = sessionIsUnlimited
 : Math.min(csvPreview.rows.length, Math.max(0, (sessionMonthlyLimit ?? 0) - usedThisMonth));
 
 const rowsToAnalyze = csvPreview.rows.slice(0, allowedCount);
-const batchSize = 10;
+const batchSize = 5;
 const totalBatches = Math.ceil(rowsToAnalyze.length / batchSize);
 const maxConcurrentBatches = 3;
 
