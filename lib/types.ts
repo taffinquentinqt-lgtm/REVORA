@@ -30,17 +30,35 @@ export interface Lead {
 
 export type Priority = "GO" | "MAYBE" | "SKIP";
 export type Channel = "Cold Call" | "LinkedIn" | "Email" | "Multi-touch";
+export type Confidence = "haute" | "moyenne" | "faible";
 
 export interface Objection {
   objection: string;
   reponse: string;
 }
 
+/** Note 0-10 + justification ancrée sur un axe de fit ICP. */
+export interface CriterionScore {
+  note: number;
+  raison: string;
+}
+
+/** Décomposition du score global en 4 axes de fit, pour un scoring explicable. */
+export interface ScoringBreakdown {
+  fit_titre: CriterionScore;
+  fit_secteur: CriterionScore;
+  fit_taille: CriterionScore;
+  fit_probleme: CriterionScore;
+}
+
 export interface LeadScore {
   score: number;
   priority: Priority;
+  confidence: Confidence;
   veto: boolean;
   veto_reason: string | null;
+  scoring: ScoringBreakdown;
+  persona: string;
   briefing: string;
   ouverture: string;
   recommended_channel: Channel;

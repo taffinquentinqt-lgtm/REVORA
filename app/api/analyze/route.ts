@@ -7,6 +7,9 @@ import type {
   LeadScore,
   Priority,
   Channel,
+  Confidence,
+  CriterionScore,
+  ScoringBreakdown,
   ScoredLead,
 } from "@/lib/types";
 
@@ -17,11 +20,15 @@ export const maxDuration = 60;
 const MODEL = "gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const MAX_BATCH = 10;
-// Généreux pour qu'un brief complet (briefing + ouverture + 3 objections +
-// timing + piège) ne soit JAMAIS tronqué — cause n°1 des champs vides.
-const MAX_TOKENS = 4096;
+// Généreux : le brief enrichi (scoring 4 axes + persona + briefing + ouverture +
+// 3 objections + timing + piège) ne doit JAMAIS être tronqué — cause n°1 des
+// champs vides.
+const MAX_TOKENS = 6144;
+// Bas : le scoring doit être stable et reproductible, pas créatif.
+const TEMPERATURE = 0.4;
 const VALID_PRIORITIES: Priority[] = ["GO", "MAYBE", "SKIP"];
 const VALID_CHANNELS: Channel[] = ["Cold Call", "LinkedIn", "Email", "Multi-touch"];
+const VALID_CONFIDENCE: Confidence[] = ["haute", "moyenne", "faible"];
 
 interface AnalyzeBody {
   icp?: ICPConfig;
@@ -46,6 +53,17 @@ function clampScore(n: unknown): number {
   return Math.max(0, Math.min(100, Math.round(v)));
 }
 
+function clampNote(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(10, Math.round(v)));
+}
+
+function normalizeCriterion(raw: unknown): CriterionScore {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return { note: clampNote(o.note), raison: String(o.raison ?? "").trim() };
+}
+
 /** Validate + normalize the raw parsed object into a LeadScore. */
 function normalizeScore(raw: Record<string, unknown>): LeadScore {
   const veto = Boolean(raw.veto);
@@ -63,9 +81,24 @@ function normalizeScore(raw: Record<string, unknown>): LeadScore {
   // Keep priority coherent with a veto
   if (veto) priority = "SKIP";
 
+  const confidence = VALID_CONFIDENCE.includes(raw.confidence as Confidence)
+    ? (raw.confidence as Confidence)
+    : "moyenne";
+
   const channel = VALID_CHANNELS.includes(raw.recommended_channel as Channel)
     ? (raw.recommended_channel as Channel)
     : "Multi-touch";
+
+  const rawScoring =
+    raw.scoring && typeof raw.scoring === "object"
+      ? (raw.scoring as Record<string, unknown>)
+      : {};
+  const scoring: ScoringBreakdown = {
+    fit_titre: normalizeCriterion(rawScoring.fit_titre),
+    fit_secteur: normalizeCriterion(rawScoring.fit_secteur),
+    fit_taille: normalizeCriterion(rawScoring.fit_taille),
+    fit_probleme: normalizeCriterion(rawScoring.fit_probleme),
+  };
 
   const objections = Array.isArray(raw.objections)
     ? raw.objections
@@ -80,8 +113,11 @@ function normalizeScore(raw: Record<string, unknown>): LeadScore {
   return {
     score,
     priority,
+    confidence,
     veto,
     veto_reason: raw.veto_reason ? String(raw.veto_reason) : null,
+    scoring,
+    persona: String(raw.persona ?? "").trim(),
     briefing: String(raw.briefing ?? "").trim(),
     ouverture: String(raw.ouverture ?? "").trim(),
     recommended_channel: channel,
@@ -97,6 +133,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Liste des champs obligatoires restés vides — sert à décider d'une relance. */
 function missingFields(s: LeadScore): string[] {
   const missing: string[] = [];
+  if (!s.persona) missing.push("persona");
   if (!s.briefing) missing.push("briefing");
   if (!s.ouverture) missing.push("ouverture");
   if (!s.channel_reasoning) missing.push("channel_reasoning");
@@ -104,6 +141,13 @@ function missingFields(s: LeadScore): string[] {
   if (!s.piege) missing.push("piege");
   if (s.objections.length < 2) missing.push("objections");
   if (s.veto && !s.veto_reason) missing.push("veto_reason");
+  // Scoring décomposé : au moins un axe doit être justifié (sinon réponse creuse)
+  const noScoring =
+    !s.scoring.fit_titre.raison &&
+    !s.scoring.fit_secteur.raison &&
+    !s.scoring.fit_taille.raison &&
+    !s.scoring.fit_probleme.raison;
+  if (noScoring) missing.push("scoring");
   return missing;
 }
 
@@ -124,7 +168,7 @@ async function callGemini(
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: "user", parts: [{ text: userMessage }] }],
       generationConfig: {
-        temperature: 0.7,
+        temperature: TEMPERATURE,
         maxOutputTokens: MAX_TOKENS,
         responseMimeType: "application/json",
       },

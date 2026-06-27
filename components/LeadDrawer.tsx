@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import type { ScoredLead } from "@/lib/types";
+import type { ScoredLead, Confidence, CriterionScore } from "@/lib/types";
 
 interface Props {
   item: ScoredLead;
@@ -29,6 +29,44 @@ function Heading({ children }: { children: React.ReactNode }) {
     <h3 className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
       {children}
     </h3>
+  );
+}
+
+const CONFIDENCE_META: Record<Confidence, { label: string; cls: string }> = {
+  haute: { label: "Confiance haute", cls: "border-go/50 bg-go/10 text-go" },
+  moyenne: { label: "Confiance moyenne", cls: "border-maybe/50 bg-maybe/10 text-maybe" },
+  faible: { label: "Confiance faible", cls: "border-skip/50 bg-skip/10 text-skip" },
+};
+
+function ConfidenceChip({ confidence }: { confidence: Confidence }) {
+  const meta = CONFIDENCE_META[confidence] ?? CONFIDENCE_META.moyenne;
+  return (
+    <span
+      className={`inline-flex rounded-[4px] border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${meta.cls}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+/** Une ligne du scoring décomposé : libellé, barre /10, justification. */
+function CriterionRow({ label, crit }: { label: string; crit: CriterionScore }) {
+  const note = Math.max(0, Math.min(10, crit.note));
+  const barCls =
+    note >= 7 ? "bg-go" : note >= 4 ? "bg-maybe" : "bg-skip";
+  return (
+    <div className="border-b border-border px-3 py-2.5 last:border-0">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium text-ink">{label}</span>
+        <span className="font-mono text-xs text-muted">{note}/10</span>
+      </div>
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
+        <div className={`h-full rounded-full ${barCls}`} style={{ width: `${note * 10}%` }} />
+      </div>
+      {crit.raison && (
+        <p className="mt-1.5 text-xs leading-relaxed text-muted">{crit.raison}</p>
+      )}
+    </div>
   );
 }
 
@@ -100,6 +138,11 @@ export function LeadDrawer({
               {lead.title && lead.company ? " · " : ""}
               {lead.company}
             </p>
+            {score?.confidence && (
+              <div className="mt-2">
+                <ConfidenceChip confidence={score.confidence} />
+              </div>
+            )}
           </div>
           <button
             ref={closeRef}
@@ -132,7 +175,45 @@ export function LeadDrawer({
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              {/* 1 — BRIEFING */}
+              {/* 0 — SCORING DÉCOMPOSÉ */}
+              {score.scoring &&
+                (score.scoring.fit_titre.raison ||
+                  score.scoring.fit_secteur.raison ||
+                  score.scoring.fit_taille.raison ||
+                  score.scoring.fit_probleme.raison) && (
+                <div>
+                  <Heading>Scoring détaillé · {score.score}/100</Heading>
+                  <div className="overflow-hidden rounded-md border border-border bg-elevated">
+                    <CriterionRow label="Fit titre" crit={score.scoring.fit_titre} />
+                    <CriterionRow label="Fit secteur" crit={score.scoring.fit_secteur} />
+                    <CriterionRow label="Fit taille" crit={score.scoring.fit_taille} />
+                    <CriterionRow label="Fit problème" crit={score.scoring.fit_probleme} />
+                  </div>
+                </div>
+              )}
+
+              {/* 0b — VETO */}
+              {score.veto && score.veto_reason && (
+                <div className="rounded-md border border-skip bg-skip/10 p-4">
+                  <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-skip">
+                    <AlertTriangle size={13} />
+                    Veto
+                  </div>
+                  <p className="text-sm leading-relaxed text-ink">{score.veto_reason}</p>
+                </div>
+              )}
+
+              {/* 1 — PERSONA */}
+              {score.persona && (
+                <div>
+                  <Heading>Qui est ce contact</Heading>
+                  <p className="rounded-md border border-border bg-elevated p-4 text-sm leading-relaxed text-muted">
+                    {score.persona}
+                  </p>
+                </div>
+              )}
+
+              {/* 2 — BRIEFING */}
               <div>
                 <Heading>Briefing</Heading>
                 <p className="rounded-md bg-elevated p-4 text-sm leading-relaxed text-ink">
