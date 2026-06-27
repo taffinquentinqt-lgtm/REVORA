@@ -21,7 +21,9 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
  */
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const privateKey = process.env.FIREBASE_PRIVATE_KEY
+  ?.replace(/^"|"$/g, "")   // retire les guillemets si Vercel les a inclus
+  ?.replace(/\\n/g, "\n");  // convertit \n littéraux en vrais sauts de ligne
 
 export const isAdminEnabled = Boolean(projectId && clientEmail && privateKey);
 
