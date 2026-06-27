@@ -32,17 +32,22 @@ let adminAuthInstance: Auth | null = null;
 let adminDbInstance: Firestore | null = null;
 
 if (isAdminEnabled) {
-  adminApp = getApps().length
-    ? getApp()
-    : initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-  adminAuthInstance = getAuth(adminApp);
-  adminDbInstance = getFirestore(adminApp);
+  try {
+    adminApp = getApps().length
+      ? getApp()
+      : initializeApp({
+          credential: cert({
+            projectId: projectId!,
+            clientEmail: clientEmail!,
+            privateKey: privateKey!,
+          }),
+        });
+    adminAuthInstance = getAuth(adminApp);
+    adminDbInstance = getFirestore(adminApp);
+  } catch (e) {
+    console.error("[firebase-admin] init failed:", e);
+    // L'app continue sans Admin SDK — les routes API tombent en mode local
+  }
 }
 
 export const adminAuth = adminAuthInstance;
