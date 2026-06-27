@@ -9,11 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, Clock, LogOut, Mail, RefreshCw, Lock } from "lucide-react";
+import { Loader2, Clock, LogOut, Mail, RefreshCw, Lock, CreditCard } from "lucide-react";
 import { onSnapshot, doc } from "firebase/firestore";
 import { subscribe, signOut as authSignOut, resendVerificationEmail, type AuthUser } from "@/lib/auth";
 import { ensureProfile, isAdminEmail, getTrialInfo, adminEmails, type Profile, type TrialInfo } from "@/lib/profile";
 import { isFirebaseEnabled, firebaseDb } from "@/lib/firebase";
+import { paymentLinkFor } from "@/lib/billing";
 
 const PUBLIC_ROUTES = ["/", "/login", "/pricing", "/faq", "/legal", "/privacy"];
 const isPublic = (p: string) => PUBLIC_ROUTES.includes(p);
@@ -135,13 +136,25 @@ function TrialExpiredScreen({ email, onSignOut }: { email: string | null; onSign
           Ton essai gratuit est terminé
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Tes 14 jours d&apos;essai sont écoulés. Pour continuer à utiliser REVORA,
-          contacte l&apos;administrateur pour activer ton abonnement.
+          Tes 14 jours d&apos;essai sont écoulés. Abonne-toi pour continuer à
+          utiliser REVORA — ton accès est réactivé juste après le paiement.
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <a
+            href={paymentLinkFor(email)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <CreditCard size={15} /> S&apos;abonner
+          </a>
+          <p className="text-[11px] leading-relaxed text-muted/80">
+            Paie avec l&apos;email de ton compte
+            {email ? ` (${email})` : ""} pour une activation rapide.
+          </p>
+          <a
             href={`mailto:${admin}?subject=${subject}&body=${body}`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm text-muted transition-colors hover:text-ink"
           >
             <Mail size={14} /> Contacter l&apos;administrateur
           </a>
@@ -157,13 +170,21 @@ function TrialExpiredScreen({ email, onSignOut }: { email: string | null; onSign
   );
 }
 
-function TrialBanner({ daysLeft }: { daysLeft: number }) {
+function TrialBanner({ daysLeft, email }: { daysLeft: number; email: string | null }) {
   return (
     <div className="flex items-center justify-center gap-2 border-b border-maybe/30 bg-maybe/10 px-4 py-2 text-center text-xs text-maybe">
       <Clock size={13} />
       <span>
         Essai gratuit — {daysLeft} jour{daysLeft > 1 ? "s" : ""} restant
-        {daysLeft > 1 ? "s" : ""}. Pense à activer ton abonnement.
+        {daysLeft > 1 ? "s" : ""}.{" "}
+        <a
+          href={paymentLinkFor(email)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold underline underline-offset-2 hover:opacity-80"
+        >
+          Activer mon abonnement
+        </a>
       </span>
     </div>
   );
@@ -270,7 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Accès OK mais essai bientôt fini : bandeau de rappel au-dessus du contenu.
       content = (
         <>
-          <TrialBanner daysLeft={trial.daysLeft} />
+          <TrialBanner daysLeft={trial.daysLeft} email={user.email} />
           {children}
         </>
       );
