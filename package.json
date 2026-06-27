@@ -27,6 +27,9 @@
     "react-dom": "19.2.4",
     "xlsx": "^0.18.5"
   },
+  "overrides": {
+    "jose": "^4.15.9"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
