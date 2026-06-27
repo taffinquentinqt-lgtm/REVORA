@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Zap, Building2, Rocket, ArrowRight, Shield, Clock, BarChart3 } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 
 const PLANS = [
   {
@@ -248,7 +249,7 @@ export default function PricingPage() {
       {/* Footer liens légaux */}
       <div className="border-t border-border py-8">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5">
-          <span className="font-display text-sm font-bold text-ink">REVORA</span>
+          <Logo size={20} wordmarkClassName="text-sm" />
           <div className="flex gap-6 text-xs text-muted">
             <Link href="/legal" className="hover:text-ink transition-colors">CGU</Link>
             <Link href="/privacy" className="hover:text-ink transition-colors">Confidentialité</Link>

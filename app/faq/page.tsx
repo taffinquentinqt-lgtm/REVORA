@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ArrowRight } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 
 const SECTIONS = [
   {
@@ -191,7 +192,7 @@ export default function FaqPage() {
       {/* Footer */}
       <div className="border-t border-border py-8">
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-5">
-          <span className="font-display text-sm font-bold text-ink">REVORA</span>
+          <Logo size={20} wordmarkClassName="text-sm" />
           <div className="flex gap-6 text-xs text-muted">
             <Link href="/pricing" className="hover:text-ink transition-colors">Tarifs</Link>
             <Link href="/legal" className="hover:text-ink transition-colors">CGU</Link>

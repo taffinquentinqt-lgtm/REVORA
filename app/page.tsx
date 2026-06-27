@@ -6,6 +6,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { CtaPrimary, AuthSecondaryLink } from "@/components/ui/LandingCta";
+import { Logo } from "@/components/ui/Logo";
 
 const FEATURES = [
   {
@@ -181,10 +182,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1180px] px-5 py-10">
           <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-display text-base font-extrabold tracking-tight text-ink">REVORA</span>
-                <span className="font-mono text-[10px] uppercase tracking-widest text-muted">v2</span>
-              </div>
+              <Logo size={24} wordmarkClassName="text-base" v2 />
               <p className="mt-2 max-w-[240px] text-xs leading-relaxed text-muted">
                 Sales intelligence B2B pour SDR et équipes commerciales. Brief expert à partir de ton CSV.
               </p>

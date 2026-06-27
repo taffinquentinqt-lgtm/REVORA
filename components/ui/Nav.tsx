@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { Logo } from "@/components/ui/Logo";
 
 export function Nav() {
   const pathname = usePathname();
@@ -12,13 +13,8 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-5">
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
-          <span className="font-display text-lg font-extrabold tracking-tight text-ink">
-            REVORA
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
-            v2
-          </span>
+        <Link href={user ? "/dashboard" : "/"} className="transition-opacity hover:opacity-80">
+          <Logo size={26} v2 />
         </Link>
 
         <nav className="flex items-center gap-1">
