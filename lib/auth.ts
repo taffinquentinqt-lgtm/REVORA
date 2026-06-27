@@ -104,6 +104,12 @@ export async function getIdToken(): Promise<string | null> {
   return "local." + window.btoa(unescape(encodeURIComponent(JSON.stringify(user))));
 }
 
+function requireFirebase(): void {
+  if (!isFirebaseEnabled) {
+    throw new Error("Service d'authentification non disponible. Contactez l'administrateur.");
+  }
+}
+
 export async function signInWithEmail(
   email: string,
   password: string
@@ -112,6 +118,7 @@ export async function signInWithEmail(
     const cred = await signInWithEmailAndPassword(firebaseAuth, email, password);
     return mapFb(cred.user)!;
   }
+  if (process.env.NODE_ENV === "production") requireFirebase();
   if (!email || !password) throw new Error("Email et mot de passe requis.");
   const user = emailToUser(email);
   localWrite(user);
@@ -123,6 +130,7 @@ export async function signUpWithEmail(
   password: string,
   displayName?: string
 ): Promise<AuthUser> {
+  if (process.env.NODE_ENV === "production") requireFirebase();
   if (isFirebaseEnabled && firebaseAuth) {
     const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
     if (displayName) await updateProfile(cred.user, { displayName });
@@ -151,6 +159,7 @@ export async function resetPassword(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<AuthUser> {
+  if (process.env.NODE_ENV === "production") requireFirebase();
   if (isFirebaseEnabled && firebaseAuth) {
     const cred = await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
     return mapFb(cred.user)!;
