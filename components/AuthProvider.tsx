@@ -9,10 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, Clock, LogOut, Mail, RefreshCw } from "lucide-react";
+import { Loader2, Clock, LogOut, Mail, RefreshCw, Lock } from "lucide-react";
 import { onSnapshot, doc } from "firebase/firestore";
 import { subscribe, signOut as authSignOut, resendVerificationEmail, type AuthUser } from "@/lib/auth";
-import { ensureProfile, isAdminEmail, type Profile } from "@/lib/profile";
+import { ensureProfile, isAdminEmail, getTrialInfo, adminEmails, type Profile, type TrialInfo } from "@/lib/profile";
 import { isFirebaseEnabled, firebaseDb } from "@/lib/firebase";
 
 const PUBLIC_ROUTES = ["/", "/login", "/pricing", "/faq", "/legal", "/privacy"];
@@ -24,6 +24,7 @@ interface AuthContextValue {
   profile: Profile | null;
   isAdmin: boolean;
   approved: boolean;
+  trial: TrialInfo;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -118,6 +119,56 @@ function PendingScreen({ email, onSignOut }: { email: string | null; onSignOut: 
   );
 }
 
+function TrialExpiredScreen({ email, onSignOut }: { email: string | null; onSignOut: () => void }) {
+  const admin = adminEmails()[0] ?? "support@revora.app";
+  const subject = encodeURIComponent("Débloquer mon abonnement REVORA");
+  const body = encodeURIComponent(
+    `Bonjour,\n\nMon essai gratuit REVORA est terminé. Je souhaite débloquer mon abonnement.\nCompte : ${email ?? ""}\n\nMerci !`
+  );
+  return (
+    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-5">
+      <div className="border-gradient glass w-full max-w-md rounded-xl p-8 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-elevated">
+          <Lock size={20} className="text-maybe" />
+        </div>
+        <h1 className="font-display mt-5 text-xl font-bold tracking-tight text-ink">
+          Ton essai gratuit est terminé
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Tes 14 jours d&apos;essai sont écoulés. Pour continuer à utiliser REVORA,
+          contacte l&apos;administrateur pour activer ton abonnement.
+        </p>
+        <div className="mt-6 flex flex-col gap-2">
+          <a
+            href={`mailto:${admin}?subject=${subject}&body=${body}`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <Mail size={14} /> Contacter l&apos;administrateur
+          </a>
+          <button
+            onClick={onSignOut}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm text-muted transition-colors hover:text-ink"
+          >
+            <LogOut size={14} /> Se déconnecter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrialBanner({ daysLeft }: { daysLeft: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 border-b border-maybe/30 bg-maybe/10 px-4 py-2 text-center text-xs text-maybe">
+      <Clock size={13} />
+      <span>
+        Essai gratuit — {daysLeft} jour{daysLeft > 1 ? "s" : ""} restant
+        {daysLeft > 1 ? "s" : ""}. Pense à activer ton abonnement.
+      </span>
+    </div>
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -183,6 +234,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = !isFirebaseEnabled || isAdminEmail(user?.email);
   const approved = isAdmin || profile?.approved === true;
   const emailVerified = !isFirebaseEnabled || user?.emailVerified !== false;
+  // Admins et mode local : accès illimité. Sinon, statut d'essai du profil.
+  const trial: TrialInfo =
+    isAdmin || !isFirebaseEnabled
+      ? { state: "active", daysLeft: 0, trialEndsAt: null }
+      : getTrialInfo(profile);
 
   useEffect(() => {
     if (loading) return;
@@ -208,11 +264,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       content = <VerifyEmailScreen email={user.email} onSignOut={signOut} />;
     } else if (!approved) {
       content = <PendingScreen email={user.email} onSignOut={signOut} />;
+    } else if (trial.state === "expired") {
+      content = <TrialExpiredScreen email={user.email} onSignOut={signOut} />;
+    } else if (trial.state === "trial" && trial.daysLeft <= 5) {
+      // Accès OK mais essai bientôt fini : bandeau de rappel au-dessus du contenu.
+      content = (
+        <>
+          <TrialBanner daysLeft={trial.daysLeft} />
+          {children}
+        </>
+      );
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, approved, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, isAdmin, approved, trial, loading, signOut }}>
       {content}
     </AuthContext.Provider>
   );

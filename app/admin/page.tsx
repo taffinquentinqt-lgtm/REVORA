@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, X, ShieldCheck, Loader2, Clock } from "lucide-react";
+import { Check, X, ShieldCheck, Loader2, Clock, CreditCard } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { getTrialInfo, type Profile } from "@/lib/profile";
 
 interface UserRow {
   uid: string;
@@ -15,6 +16,8 @@ interface UserRow {
   role?: string;
   teamSize?: string;
   source?: string;
+  trialStartedAt?: number;
+  subscriptionActive?: boolean;
 }
 
 export default function AdminPage() {
@@ -66,9 +69,47 @@ export default function AdminPage() {
         throw new Error(e ?? "Échec");
       }
       setUsers((prev) =>
-        prev ? prev.map((u) => (u.uid === uid ? { ...u, approved } : u)) : prev
+        prev
+          ? prev.map((u) =>
+              u.uid === uid
+                ? {
+                    ...u,
+                    approved,
+                    // 1re approbation : démarre l'essai côté UI aussi
+                    trialStartedAt:
+                      approved && !u.trialStartedAt ? Date.now() : u.trialStartedAt,
+                  }
+                : u
+            )
+          : prev
       );
       toast(approved ? "Compte approuvé." : "Accès retiré.", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Échec", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const setSubscription = async (uid: string, subscriptionActive: boolean) => {
+    setBusy(uid);
+    try {
+      const res = await apiPost("/api/admin/users", { uid, subscriptionActive });
+      if (!res.ok) {
+        const { error: e } = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(e ?? "Échec");
+      }
+      setUsers((prev) =>
+        prev
+          ? prev.map((u) => (u.uid === uid ? { ...u, subscriptionActive } : u))
+          : prev
+      );
+      toast(
+        subscriptionActive ? "Abonnement activé." : "Abonnement désactivé.",
+        "success"
+      );
     } catch (err) {
       toast(err instanceof Error ? err.message : "Échec", "error");
     } finally {
@@ -138,6 +179,9 @@ export default function AdminPage() {
                     user={u}
                     busy={busy === u.uid}
                     onRevoke={() => setApproved(u.uid, false)}
+                    onToggleSub={() =>
+                      setSubscription(u.uid, !u.subscriptionActive)
+                    }
                   />
                 ))}
               </div>
@@ -149,16 +193,41 @@ export default function AdminPage() {
   );
 }
 
+function SubBadge({ user }: { user: UserRow }) {
+  const info = getTrialInfo(user as Profile);
+  if (info.state === "active") {
+    return (
+      <span className="shrink-0 rounded-[4px] border border-accent2/40 bg-accent2/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent2">
+        Abonné
+      </span>
+    );
+  }
+  if (info.state === "expired") {
+    return (
+      <span className="shrink-0 rounded-[4px] border border-skip/40 bg-skip/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-skip">
+        Essai expiré
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 rounded-[4px] border border-maybe/40 bg-maybe/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-maybe">
+      Essai · {info.daysLeft}j
+    </span>
+  );
+}
+
 function Row({
   user,
   busy,
   onApprove,
   onRevoke,
+  onToggleSub,
 }: {
   user: UserRow;
   busy: boolean;
   onApprove?: () => void;
   onRevoke?: () => void;
+  onToggleSub?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 last:border-0">
@@ -166,6 +235,7 @@ function Row({
         <div className="flex items-baseline gap-2">
           <p className="truncate text-sm font-medium text-ink">{user.displayName || (user.email ?? "—")}</p>
           {user.company && <span className="shrink-0 font-mono text-xs text-muted">{user.company}</span>}
+          {onRevoke && <SubBadge user={user} />}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <p className="truncate font-mono text-xs text-muted">{user.email ?? user.uid}</p>
@@ -176,6 +246,20 @@ function Row({
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {onToggleSub && (
+          <button
+            onClick={onToggleSub}
+            disabled={busy}
+            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+              user.subscriptionActive
+                ? "border-border text-muted hover:text-ink"
+                : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+            }`}
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
+            {user.subscriptionActive ? "Désactiver l'abo" : "Activer l'abo"}
+          </button>
+        )}
         {onApprove && (
           <button
             onClick={onApprove}

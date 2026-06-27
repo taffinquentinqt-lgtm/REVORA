@@ -1,7 +1,9 @@
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, isAdminEnabled } from "./firebase-admin";
+import { adminAuth, adminDb, isAdminEnabled } from "./firebase-admin";
+
+const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
 
 export interface AuthedUser {
   uid: string;
@@ -100,6 +102,62 @@ export async function requireAuth(
     };
   }
   return { user };
+}
+
+/**
+ * Comme requireAuth, mais exige aussi un accès actif :
+ *   • admin                       -> toujours OK
+ *   • approved + abonné           -> OK
+ *   • approved + essai non expiré -> OK
+ *   • sinon                       -> 403 (non validé) ou 402 (essai terminé)
+ * Repli : si Firestore Admin indisponible (dev/local), on laisse passer.
+ */
+export async function requireActiveAccess(
+  req: NextRequest
+): Promise<{ user: AuthedUser } | { response: NextResponse }> {
+  const auth = await requireAuth(req);
+  if ("response" in auth) return auth;
+
+  if (isAdminEmail(auth.user.email)) return auth;
+  if (!isAdminEnabled || !adminDb) return auth; // pas de vérif possible -> dev
+
+  try {
+    const snap = await adminDb.collection("users").doc(auth.user.uid).get();
+    const p = snap.data();
+
+    if (!p?.approved) {
+      return {
+        response: NextResponse.json(
+          { error: "Compte en attente de validation." },
+          { status: 403 }
+        ),
+      };
+    }
+
+    if (!p.subscriptionActive) {
+      const start =
+        typeof p.trialStartedAt === "number"
+          ? p.trialStartedAt
+          : typeof p.createdAt === "number"
+          ? p.createdAt
+          : Date.now();
+      if (Date.now() > start + TRIAL_MS) {
+        return {
+          response: NextResponse.json(
+            {
+              error:
+                "Ton essai gratuit est terminé. Contacte l'administrateur pour activer ton abonnement.",
+            },
+            { status: 402 }
+          ),
+        };
+      }
+    }
+
+    return auth;
+  } catch {
+    return auth; // fail-open en cas d'erreur Firestore
+  }
 }
 
 /** Comme requireAuth, mais exige aussi que l'utilisateur soit admin. */

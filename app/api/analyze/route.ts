@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/server-auth";
+import { requireActiveAccess } from "@/lib/server-auth";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
 import type {
   ICPConfig,
@@ -239,8 +239,8 @@ async function scoreLead(
 }
 
 export async function POST(req: NextRequest) {
-  // Auth + rate limit obligatoires avant tout appel modèle.
-  const auth = await requireAuth(req);
+  // Auth + accès actif (validé + essai/abonnement) + rate limit avant tout appel modèle.
+  const auth = await requireActiveAccess(req);
   if ("response" in auth) return auth.response;
 
   const apiKey = process.env.GEMINI_API_KEY;

@@ -14,6 +14,8 @@ interface ProfileRow {
   role?: string;
   teamSize?: string;
   source?: string;
+  trialStartedAt?: number;
+  subscriptionActive?: boolean;
 }
 
 async function sendApprovalEmail(email: string, displayName: string | null) {
@@ -104,6 +106,9 @@ export async function GET(req: NextRequest) {
         role: data.role ?? undefined,
         teamSize: data.teamSize ?? undefined,
         source: data.source ?? undefined,
+        trialStartedAt:
+          typeof data.trialStartedAt === "number" ? data.trialStartedAt : undefined,
+        subscriptionActive: Boolean(data.subscriptionActive),
       };
     });
     users.sort((a, b) => b.createdAt - a.createdAt);
@@ -126,30 +131,49 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { uid?: string; approved?: boolean };
+  let body: { uid?: string; approved?: boolean; subscriptionActive?: boolean };
   try {
-    body = (await req.json()) as { uid?: string; approved?: boolean };
+    body = (await req.json()) as {
+      uid?: string;
+      approved?: boolean;
+      subscriptionActive?: boolean;
+    };
   } catch {
     return NextResponse.json({ error: "JSON invalide." }, { status: 400 });
   }
 
-  if (!body.uid || typeof body.approved !== "boolean") {
+  if (
+    !body.uid ||
+    (typeof body.approved !== "boolean" &&
+      typeof body.subscriptionActive !== "boolean")
+  ) {
     return NextResponse.json(
-      { error: "uid et approved (boolean) requis." },
+      { error: "uid + (approved ou subscriptionActive) requis." },
       { status: 400 }
     );
   }
 
   try {
     const ref = adminDb.collection("users").doc(body.uid);
-    await ref.set({ approved: body.approved }, { merge: true });
+    const before = (await ref.get()).data();
 
-    // Envoie l'email de bienvenue uniquement lors de l'approbation.
-    if (body.approved) {
-      const snap = await ref.get();
-      const data = snap.data();
-      if (data?.email) {
-        await sendApprovalEmail(data.email as string, data.displayName as string | null);
+    const update: Record<string, unknown> = {};
+    if (typeof body.approved === "boolean") update.approved = body.approved;
+    if (typeof body.subscriptionActive === "boolean")
+      update.subscriptionActive = body.subscriptionActive;
+
+    // Démarre l'essai de 14 jours à la 1re approbation (si pas déjà posé).
+    if (body.approved === true && !before?.trialStartedAt) {
+      update.trialStartedAt = Date.now();
+    }
+
+    await ref.set(update, { merge: true });
+
+    // Envoie l'email de bienvenue uniquement au passage à approved=true.
+    if (body.approved === true && !before?.approved) {
+      const email = before?.email as string | undefined;
+      if (email) {
+        await sendApprovalEmail(email, (before?.displayName as string | null) ?? null);
       }
     }
 
