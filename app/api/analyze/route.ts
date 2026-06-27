@@ -1,356 +1,241 @@
-import OpenAI from "openai";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/server-auth";
+import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
+import type {
+  ICPConfig,
+  Lead,
+  LeadScore,
+  Priority,
+  Channel,
+  ScoredLead,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-const client = new OpenAI({
-apiKey: process.env.GROQ_API_KEY,
-baseURL: "https://api.groq.com/openai/v1",
-});
+// Moteur : Google Gemini (REST, sans SDK). Modèle avec quota gratuit actif.
+const MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MAX_BATCH = 10;
+// Généreux pour qu'un brief complet (briefing + ouverture + 3 objections +
+// timing + piège) ne soit JAMAIS tronqué — cause n°1 des champs vides.
+const MAX_TOKENS = 4096;
+const VALID_PRIORITIES: Priority[] = ["GO", "MAYBE", "SKIP"];
+const VALID_CHANNELS: Channel[] = ["Cold Call", "LinkedIn", "Email", "Multi-touch"];
 
-type GeneratedProfile = {
-productSummary: string;
-problemSummary: string;
-valueProposition: string;
-icpSummary: string;
-targetFunctions: string[];
-buyingSignals: string[];
-businessPains: string[];
-recommendedAngles: string[];
-priorityLogic: string;
-};
-
-export async function POST(req: Request) {
-try {
-const body = await req.json();
-
-const {
-brief,
-generatedProfile,
-headers,
-rows,
-}: {
-brief: {
-offerDescription: string;
-problemSolved: string;
-targetCompanyTypes: string;
-targetRoles: string;
-};
-generatedProfile: GeneratedProfile;
-headers: string[];
-rows: string[][];
-} = body;
-
-if (!process.env.GROQ_API_KEY) {
-return NextResponse.json(
-{ error: "GROQ_API_KEY introuvable côté serveur." },
-{ status: 500 }
-);
+interface AnalyzeBody {
+  icp?: ICPConfig;
+  leads?: Lead[];
 }
 
-if (!brief || !generatedProfile || !headers || !rows) {
-return NextResponse.json(
-{ error: "Données incomplètes pour l’analyse CSV." },
-{ status: 400 }
-);
+/** Pull the first balanced JSON object out of a model response. */
+function extractJson(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("Aucun JSON trouvé dans la réponse");
+  }
+  return candidate.slice(start, end + 1);
 }
 
-if (!Array.isArray(headers) || !Array.isArray(rows)) {
-return NextResponse.json(
-{ error: "Format CSV invalide." },
-{ status: 400 }
-);
+function clampScore(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
-if (rows.length === 0) {
-return NextResponse.json(
-{ error: "Aucune ligne à analyser." },
-{ status: 400 }
-);
+/** Validate + normalize the raw parsed object into a LeadScore. */
+function normalizeScore(raw: Record<string, unknown>): LeadScore {
+  const veto = Boolean(raw.veto);
+  let score = clampScore(raw.score);
+  // Rule: veto forces score <= 25
+  if (veto && score > 25) score = 25;
+
+  let priority = VALID_PRIORITIES.includes(raw.priority as Priority)
+    ? (raw.priority as Priority)
+    : score >= 75
+    ? "GO"
+    : score >= 40
+    ? "MAYBE"
+    : "SKIP";
+  // Keep priority coherent with a veto
+  if (veto) priority = "SKIP";
+
+  const channel = VALID_CHANNELS.includes(raw.recommended_channel as Channel)
+    ? (raw.recommended_channel as Channel)
+    : "Multi-touch";
+
+  const objections = Array.isArray(raw.objections)
+    ? raw.objections
+        .filter((o): o is Record<string, unknown> => !!o && typeof o === "object")
+        .map((o) => ({
+          objection: String(o.objection ?? "").trim(),
+          reponse: String(o.reponse ?? "").trim(),
+        }))
+        .filter((o) => o.objection && o.reponse)
+    : [];
+
+  return {
+    score,
+    priority,
+    veto,
+    veto_reason: raw.veto_reason ? String(raw.veto_reason) : null,
+    briefing: String(raw.briefing ?? "").trim(),
+    ouverture: String(raw.ouverture ?? "").trim(),
+    recommended_channel: channel,
+    channel_reasoning: String(raw.channel_reasoning ?? "").trim(),
+    objections,
+    timing: String(raw.timing ?? "").trim(),
+    piege: String(raw.piege ?? "").trim(),
+  };
 }
 
-const csvData = rows.map((row, rowIndex) => {
-const obj: Record<string, string | number> = {
-__row_index: rowIndex,
-};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-headers.forEach((header, index) => {
-obj[header] = row[index] ?? "";
-});
-
-return obj;
-});
-
-const prompt = `
-Tu es SalesPilote, expert en qualification et préparation commerciale B2B.
-
-Mission :
-Transformer chaque lead d’un CSV en décision commerciale exploitable.
-
-Règles générales :
-- Ne jamais inventer une donnée absente.
-- Ne jamais présenter une hypothèse comme un fait.
-- Respecter strictement le brief client.
-- Réponses courtes, concrètes, orientées action.
-- Retourner uniquement un JSON valide.
-
-Brief client :
-${JSON.stringify(brief, null, 2)}
-
-Profil d’analyse enrichi :
-${JSON.stringify(generatedProfile, null, 2)}
-
-Logique d’évaluation :
-Attribue pour chaque lead :
-- fit_icp_score /25
-- role_relevance_score /20
-- data_quality_score /15
-- need_relevance_score /20
-- actionability_score /20
-
-lead_score = somme des 5 sous-scores, total sur 100.
-
-Priorités :
-- GO = fit crédible, canal exploitable, angle défendable, effort rentable
-- MAYBE = potentiel réel mais incomplet
-- SKIP = faible fit, faible besoin, rôle éloigné, données faibles ou effort peu rentable
-
-Veto GO :
-Un lead ne peut pas être GO si :
-- aucun canal exploitable
-- rôle manifestement hors cible
-- données trop faibles pour agir
-- fit cible trop faible
-
-Confiance :
-- high = données suffisantes + fit lisible + angle crédible
-- medium = plausible mais incomplet
-- low = fragile, trop d’hypothèses ou données faibles
-
-Profondeur :
-- basic = score + décision + action simple
-- advanced = analyse plus poussée
-
-Canaux autorisés :
-- Email
-- LinkedIn
-- Call
-- Multicanal
-- Enrichissement d'abord
-- Nurture léger
-
-Logique canal :
-- Email si email dispo + angle crédible
-- LinkedIn si contact identifiable mais email faible/absent
-- Call si téléphone dispo + priorité forte
-- Multicanal si lead fort + plusieurs canaux
-- Enrichissement d'abord si potentiel mais données insuffisantes
-- Nurture léger si lead faible mais pas absurde
-
-Actions autorisées :
-- envoyer un email personnalisé
-- tenter un message LinkedIn
-- appeler directement
-- lancer une séquence multicanale
-- enrichir avant contact
-- garder en watchlist
-- sortir du pipe court terme
-
-Style de sortie :
-- fit_reason = 1 phrase
-- why_now = 1 phrase
-- channel_reason = 1 phrase
-- probable_business_pains = 1 à 2 éléments
-- detected_opportunities = 1 à 2 éléments
-- email_idea = court
-- linkedin_idea = court
-- call_opener = 1 phrase
-- probable_objection = réaliste
-- objection_handling = court, calme, non agressif
-- discovery_focus = 1 phrase
-- questions_to_ask = 2 à 4 questions courtes
-- value_hypothesis = 1 phrase
-- handoff_note = court
-
-Lecture senior :
-Inclure aussi :
-- opportunity_level = low | medium | high
-- deal_potential = low | medium | high
-- pain_clarity = low | medium | high
-- urgency_level = low | medium | high
-- sales_readiness = not_ready | worth_testing | ready_for_meeting
-
-Contraintes :
-- Analyser toutes les lignes.
-- Retourner exactement 1 résultat par lead.
-- Respecter l’ordre des leads.
-- Vérifier cohérence score / priorité / veto / confiance / canal.
-
-Format JSON obligatoire :
-{
-"results": [
-{
-"row_index": 0,
-"lead_score": 0,
-"priority": "GO",
-"confidence_level": "high",
-"analysis_depth": "advanced",
-"fit_icp_score": 0,
-"role_relevance_score": 0,
-"data_quality_score": 0,
-"need_relevance_score": 0,
-"actionability_score": 0,
-"fit_reason": "string",
-"why_now": "string",
-"probable_business_pains": ["string", "string"],
-"detected_opportunities": ["string", "string"],
-"best_outreach_channel": "Email",
-"channel_reason": "string",
-"email_idea": "string",
-"linkedin_idea": "string",
-"call_opener": "string",
-"next_best_action": "envoyer un email personnalisé",
-"probable_objection": "string",
-"objection_handling": "string",
-"opportunity_level": "medium",
-"deal_potential": "medium",
-"pain_clarity": "medium",
-"urgency_level": "medium",
-"sales_readiness": "worth_testing",
-"discovery_focus": "string",
-"questions_to_ask": ["string", "string"],
-"value_hypothesis": "string",
-"handoff_note": "string"
-}
-]
+/** Liste des champs obligatoires restés vides — sert à décider d'une relance. */
+function missingFields(s: LeadScore): string[] {
+  const missing: string[] = [];
+  if (!s.briefing) missing.push("briefing");
+  if (!s.ouverture) missing.push("ouverture");
+  if (!s.channel_reasoning) missing.push("channel_reasoning");
+  if (!s.timing) missing.push("timing");
+  if (!s.piege) missing.push("piege");
+  if (s.objections.length < 2) missing.push("objections");
+  if (s.veto && !s.veto_reason) missing.push("veto_reason");
+  return missing;
 }
 
-Leads à analyser :
-${JSON.stringify(csvData, null, 2)}
-`;
-
-const response = await client.chat.completions.create({
-model: "llama-3.3-70b-versatile",
-messages: [
-{
-role: "system",
-content:
-"Tu réponds uniquement avec un objet JSON valide. Aucun texte hors JSON.",
-},
-{
-role: "user",
-content: prompt,
-},
-],
-temperature: 0.1,
-max_tokens: 8192,
-response_format: { type: "json_object" },
-});
-
-const text = response.choices?.[0]?.message?.content?.trim();
-
-if (!text) {
-return NextResponse.json(
-{ error: "Réponse IA vide." },
-{ status: 500 }
-);
+interface GeminiResult {
+  text: string;
+  truncated: boolean;
 }
 
-let parsed: any;
-try {
-parsed = JSON.parse(text);
-} catch {
-return NextResponse.json(
-{
-error: "La réponse IA n’est pas un JSON valide.",
-raw: text,
-},
-{ status: 500 }
-);
+/** Appel Gemini (REST). Retourne le texte concaténé + drapeau de troncature. */
+async function callGemini(
+  apiKey: string,
+  userMessage: string
+): Promise<GeminiResult> {
+  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: MAX_TOKENS,
+        responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Gemini ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = (await res.json()) as {
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+      finishReason?: string;
+    }[];
+  };
+  const candidate = data.candidates?.[0];
+  const text = (candidate?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
+    .join("");
+  return { text, truncated: candidate?.finishReason === "MAX_TOKENS" };
 }
 
-if (!parsed.results || !Array.isArray(parsed.results)) {
-return NextResponse.json(
-{
-error: "Format de réponse IA invalide : results manquant ou invalide.",
-raw: parsed,
-},
-{ status: 500 }
-);
+async function scoreLead(
+  apiKey: string,
+  icp: ICPConfig,
+  lead: Lead
+): Promise<ScoredLead> {
+  let lastErr = "";
+  let best: LeadScore | null = null;
+  // initial try + 2 retries
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { text, truncated } = await callGemini(
+        apiKey,
+        buildUserMessage(icp, lead)
+      );
+
+      // Réponse tronquée => on relance plutôt que d'accepter un JSON coupé.
+      if (truncated) {
+        lastErr = "Réponse tronquée (max_tokens)";
+        if (attempt < 2) await sleep(400 * (attempt + 1));
+        continue;
+      }
+
+      const parsed = JSON.parse(extractJson(text)) as Record<string, unknown>;
+      const score = normalizeScore(parsed);
+
+      const missing = missingFields(score);
+      if (missing.length === 0) {
+        return { lead, score }; // tout est rempli
+      }
+
+      // Incomplet : on garde le meilleur essai et on relance.
+      best = score;
+      lastErr = `Champs vides: ${missing.join(", ")}`;
+      if (attempt < 2) await sleep(400 * (attempt + 1));
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      if (attempt < 2) await sleep(400 * (attempt + 1));
+    }
+  }
+  // Aucun essai 100% complet : on renvoie le meilleur obtenu (jamais null si
+  // au moins un parse a réussi), sinon une erreur.
+  if (best) return { lead, score: best, error: lastErr };
+  return { lead, score: null, error: lastErr || "Échec du scoring" };
 }
 
-if (parsed.results.length !== rows.length) {
-return NextResponse.json(
-{
-error: `L'IA a retourné ${parsed.results.length} résultats pour ${rows.length} leads.`,
-raw: parsed,
-},
-{ status: 500 }
-);
-}
+export async function POST(req: NextRequest) {
+  // Auth + rate limit obligatoires avant tout appel modèle.
+  const auth = await requireAuth(req);
+  if ("response" in auth) return auth.response;
 
-const normalizedResults = [...parsed.results]
-.sort((a, b) => Number(a.row_index) - Number(b.row_index))
-.map((item) => ({
-row_index: Number(item.row_index) || 0,
-lead_score: Number(item.lead_score) || 0,
-priority: item.priority || "MAYBE",
-confidence_level: item.confidence_level || "medium",
-analysis_depth: item.analysis_depth || "basic",
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "GEMINI_API_KEY manquante côté serveur." },
+      { status: 500 }
+    );
+  }
 
-fit_icp_score: Number(item.fit_icp_score) || 0,
-role_relevance_score: Number(item.role_relevance_score) || 0,
-data_quality_score: Number(item.data_quality_score) || 0,
-need_relevance_score: Number(item.need_relevance_score) || 0,
-actionability_score: Number(item.actionability_score) || 0,
+  let body: AnalyzeBody;
+  try {
+    body = (await req.json()) as AnalyzeBody;
+  } catch {
+    return NextResponse.json({ error: "JSON invalide." }, { status: 400 });
+  }
 
-fit_reason: item.fit_reason || "",
-why_now: item.why_now || "",
-probable_business_pains: Array.isArray(item.probable_business_pains)
-? item.probable_business_pains
-: [],
-detected_opportunities: Array.isArray(item.detected_opportunities)
-? item.detected_opportunities
-: [],
+  const { icp, leads } = body;
+  if (!icp || !Array.isArray(leads) || leads.length === 0) {
+    return NextResponse.json(
+      { error: "Requête invalide : icp et leads requis." },
+      { status: 400 }
+    );
+  }
+  if (leads.length > MAX_BATCH) {
+    return NextResponse.json(
+      { error: `Batch trop large (max ${MAX_BATCH}).` },
+      { status: 400 }
+    );
+  }
 
-best_outreach_channel: item.best_outreach_channel || "",
-channel_reason: item.channel_reason || "",
-email_idea: item.email_idea || "",
-linkedin_idea: item.linkedin_idea || "",
-call_opener: item.call_opener || "",
-next_best_action: item.next_best_action || "",
-
-probable_objection: item.probable_objection || "",
-objection_handling: item.objection_handling || "",
-
-opportunity_level: item.opportunity_level || "medium",
-deal_potential: item.deal_potential || "medium",
-pain_clarity: item.pain_clarity || "medium",
-urgency_level: item.urgency_level || "medium",
-sales_readiness: item.sales_readiness || "worth_testing",
-discovery_focus: item.discovery_focus || "",
-questions_to_ask: Array.isArray(item.questions_to_ask)
-? item.questions_to_ask
-: [],
-value_hypothesis: item.value_hypothesis || "",
-handoff_note: item.handoff_note || "",
-}));
-
-return NextResponse.json({ results: normalizedResults });
-} catch (error: any) {
-console.error("analyze-csv error:", error);
-
-return NextResponse.json(
-{
-error:
-error?.message ||
-error?.error?.message ||
-error?.response?.data ||
-JSON.stringify(error) ||
-"Impossible d’analyser le CSV.",
-},
-{ status: 500 }
-);
-}
+  try {
+    const results = await Promise.all(
+      leads.map((lead) => scoreLead(apiKey, icp, lead))
+    );
+    return NextResponse.json({ results });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur interne";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -11,16 +11,21 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.73",
     "@ai-sdk/openai": "^3.0.63",
+    "@anthropic-ai/sdk": "^0.106.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.3",
     "ai": "^6.0.180",
     "exceljs": "^4.4.0",
+    "firebase": "^12.15.0",
+    "firebase-admin": "^14.1.0",
+    "lucide-react": "^1.21.0",
     "next": "16.2.4",
     "open": "^11.0.0",
     "openai": "^6.36.0",
     "papaparse": "^5.5.3",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
