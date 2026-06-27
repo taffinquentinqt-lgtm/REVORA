@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Zap, Building2, Rocket, ArrowRight, Shield, Clock, BarChart3 } from "lucide-react";
+import { Check, Zap, Building2, Rocket, ArrowRight, Shield, Clock, BarChart3, Sparkles } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 
 const PLANS = [
@@ -99,6 +99,11 @@ export default function PricingPage() {
             Pas de frais cachés, pas d'engagement surprise. Tu paies pour des leads mieux qualifiés et des briefs qui convertissent.
           </p>
 
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-accent2/40 bg-accent2/10 px-4 py-1.5 text-sm font-medium text-accent2">
+            <Sparkles size={15} />
+            Offre de lancement — tarifs réduits pour les premiers inscrits
+          </div>
+
           {/* Toggle annuel/mensuel */}
           <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-border bg-surface/60 p-1">
             <button
@@ -122,6 +127,9 @@ export default function PricingPage() {
           {PLANS.map((plan) => {
             const Icon = plan.icon;
             const price = yearly ? plan.yearlyPrice : plan.monthlyPrice;
+            // Prix normal = prix de lancement + 10€/mois (ramené au tarif annuel −20%).
+            const normalMonthly = plan.monthlyPrice + 10;
+            const strike = yearly ? Math.round(normalMonthly * 0.8) : normalMonthly;
             return (
               <div
                 key={plan.name}
@@ -151,12 +159,16 @@ export default function PricingPage() {
                 <p className="mt-3 text-sm leading-relaxed text-muted">{plan.desc}</p>
 
                 <div className="mt-6">
-                  <div className="flex items-end gap-1">
+                  <div className="flex items-end gap-2">
                     <span className="font-display text-4xl font-extrabold tracking-tight text-ink">{price}€</span>
+                    <span className="mb-1 text-base text-muted line-through decoration-skip/70">{strike}€</span>
                     <span className="mb-1 text-sm text-muted">/mois</span>
                   </div>
+                  <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-accent2/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent2">
+                    Prix de lancement
+                  </p>
                   {yearly && (
-                    <p className="mt-1 font-mono text-xs text-muted">
+                    <p className="mt-2 font-mono text-xs text-muted">
                       Facturé {price * 12}€ / an — économise {(plan.monthlyPrice - price) * 12}€
                     </p>
                   )}
