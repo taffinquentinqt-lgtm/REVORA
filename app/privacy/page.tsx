@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <h1 className="font-display mt-6 text-3xl font-extrabold tracking-tight text-ink">
           Politique de Confidentialité
         </h1>
-        <p className="mt-2 font-mono text-xs text-muted">Dernière mise à jour : 27 juin 2026</p>
+        <p className="mt-2 font-mono text-xs text-muted">Dernière mise à jour : 29 juin 2026</p>
       </div>
 
       <div className="flex flex-col gap-10 text-sm leading-relaxed text-muted">
@@ -34,6 +34,7 @@ export default function PrivacyPage() {
               { cat: "Leads uploadés", data: "Données du CSV fourni par l'utilisateur", base: "Intérêt légitime / Contrat" },
               { cat: "Analyses", data: "Résultats de scoring, briefs générés", base: "Exécution du contrat" },
               { cat: "Logs techniques", data: "Adresse IP, timestamps des requêtes API", base: "Intérêt légitime (sécurité)" },
+              { cat: "Liste de contact", data: "Email laissé via le formulaire de la page d'accueil", base: "Consentement" },
             ].map((row, i) => (
               <div key={i} className="grid grid-cols-3 gap-4 border-b border-border bg-surface px-4 py-3 text-xs last:border-0">
                 <span className="font-medium text-ink">{row.cat}</span>
@@ -50,6 +51,7 @@ export default function PrivacyPage() {
             <li>Création et gestion de votre compte utilisateur</li>
             <li>Fourniture du service de scoring et de génération de briefs</li>
             <li>Envoi d'emails transactionnels (vérification, validation de compte, notifications)</li>
+            <li>Envoi d'actualités produit et de contenus, uniquement si vous avez laissé votre email volontairement via le formulaire de contact (désinscription possible à tout moment)</li>
             <li>Sécurité et prévention des abus (rate limiting, détection de fraude)</li>
             <li>Amélioration du service (analyse des usages agrégés et anonymisés)</li>
           </ul>
@@ -81,6 +83,7 @@ export default function PrivacyPage() {
             <li><span className="text-ink">Données de compte</span> — durée de l'abonnement + 3 ans après résiliation</li>
             <li><span className="text-ink">Données de leads uploadées</span> — 12 mois glissants, puis suppression automatique</li>
             <li><span className="text-ink">Logs techniques</span> — 90 jours</li>
+            <li><span className="text-ink">Liste de contact / newsletter</span> — jusqu'à votre désinscription</li>
             <li><span className="text-ink">Données de facturation</span> — 10 ans (obligation légale)</li>
           </ul>
         </section>
@@ -111,7 +114,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-3 font-display text-base font-bold text-ink">8. Cookies</h2>
           <p>
-            REVORA utilise uniquement des cookies strictement nécessaires au fonctionnement du service (session d'authentification Firebase). Aucun cookie publicitaire ou de tracking tiers n'est utilisé.
+            REVORA utilise uniquement des cookies strictement nécessaires au fonctionnement du service (session d'authentification Firebase). Aucun cookie publicitaire ou de tracking tiers n'est utilisé. La mesure d'audience (Vercel Analytics) est anonyme et fonctionne sans cookie.
           </p>
         </section>
 
