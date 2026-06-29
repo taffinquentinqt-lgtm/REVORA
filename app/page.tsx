@@ -4,9 +4,36 @@ import {
   MessageSquareQuote,
   ShieldAlert,
   Sparkles,
+  User,
+  AlertTriangle,
+  BadgeCheck,
+  Upload,
+  SlidersHorizontal,
+  FileText,
 } from "lucide-react";
 import { CtaPrimary, AuthSecondaryLink } from "@/components/ui/LandingCta";
 import { Logo } from "@/components/ui/Logo";
+
+const STEPS = [
+  {
+    icon: Upload,
+    n: "01",
+    title: "Charge ton CSV",
+    text: "Tes leads exportés de LinkedIn, Apollo ou ton CRM. Prénom, poste et entreprise suffisent pour démarrer.",
+  },
+  {
+    icon: SlidersHorizontal,
+    n: "02",
+    title: "Décris ton ICP",
+    text: "Ta cible idéale : secteur, taille, problème que tu résous. REVORA s'en sert pour scorer juste, pas au hasard.",
+  },
+  {
+    icon: FileText,
+    n: "03",
+    title: "Reçois un brief par lead",
+    text: "Score décomposé, angle d'approche, première phrase, objections, timing et piège — exportable en Excel.",
+  },
+];
 
 const FEATURES = [
   {
@@ -85,6 +112,103 @@ function PreviewCard() {
   );
 }
 
+/** Chiffre clé de la bande de preuve sociale. */
+function Stat({ value, label, sub, accent }: { value: string; label: string; sub?: string; accent?: boolean }) {
+  return (
+    <div className="text-center">
+      <p className={`font-display text-3xl font-extrabold tracking-tight md:text-4xl ${accent ? "text-accent2" : "text-ink"}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-sm font-medium text-ink">{label}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    </div>
+  );
+}
+
+/** Anatomie d'un brief — la profondeur réelle d'une analyse, pas juste un score. */
+function BriefShowcase() {
+  const axes = [
+    { label: "Fit titre", note: 9, raison: "CDO — décideur direct sur la donnée" },
+    { label: "Fit secteur", note: 9, raison: "Scale-up data, cœur de cible" },
+    { label: "Fit taille", note: 8, raison: "180 personnes — budget et besoin réels" },
+    { label: "Fit problème", note: 8, raison: "Dette technique data citée publiquement" },
+  ];
+  return (
+    <div className="border-gradient glass rounded-xl p-1.5">
+      <div className="rounded-lg bg-surface/80 p-5">
+        {/* En-tête lead */}
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
+          <div className="min-w-0">
+            <p className="font-display text-base font-semibold text-ink">Marie Dupont</p>
+            <p className="mt-0.5 truncate text-xs text-muted">CDO · Acme Data · 180 pers.</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <span className="rounded-[4px] border border-go/60 bg-go/10 px-2 py-0.5 font-mono text-xs font-bold text-go">
+              GO · 88
+            </span>
+            <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-accent2">
+              <BadgeCheck size={11} /> Confiance haute
+            </span>
+          </div>
+        </div>
+
+        {/* Scoring décomposé */}
+        <div className="border-b border-border py-4">
+          <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted">
+            Scoring détaillé — pourquoi ce score, axe par axe
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {axes.map((a) => (
+              <div key={a.label} className="flex items-center gap-3">
+                <span className="w-[84px] shrink-0 text-xs text-muted">{a.label}</span>
+                <div className="h-1.5 w-[64px] shrink-0 overflow-hidden rounded-full bg-border">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${a.note * 10}%` }} />
+                </div>
+                <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-ink">{a.note}</span>
+                <span className="hidden flex-1 truncate text-xs text-muted sm:block">{a.raison}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Persona */}
+        <div className="border-b border-border py-4">
+          <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted">
+            <User size={11} /> Qui est ce contact
+          </p>
+          <p className="text-sm leading-relaxed text-ink/90">
+            Marie arbitre en continu entre la dette technique de la donnée et les
+            demandes métier. Sensible au temps gagné par ses équipes, pas au jargon outil.
+          </p>
+        </div>
+
+        {/* Première phrase */}
+        <div className="rounded-md border border-accent/40 bg-accent/10 p-3">
+          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-accent">
+            Première phrase — utilisable telle quelle
+          </p>
+          <p className="font-mono text-xs leading-relaxed text-ink">
+            Marie, comment vous arbitrez aujourd&apos;hui entre la dette technique sur
+            la donnée et les demandes métier qui s&apos;accumulent ?
+          </p>
+        </div>
+
+        {/* Piège */}
+        <div className="mt-3 flex gap-2 rounded-md border border-skip/30 bg-skip/5 p-3">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-skip" />
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-skip">Piège à éviter</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink/90">
+              Ne pas dérouler la démo produit d&apos;entrée : elle décroche si l&apos;échange
+              commence par l&apos;outil au lieu de son arbitrage.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <div className="relative overflow-hidden">
@@ -97,10 +221,15 @@ export default function LandingPage() {
         {/* HERO */}
         <section className="grid grid-cols-1 items-center gap-12 pb-16 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24">
           <div>
-            <span className="reveal inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent2" />
-              Sales intelligence B2B
-            </span>
+            <div className="reveal flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest text-accent backdrop-blur">
+                <Sparkles size={11} /> V2
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent2" />
+                Sales intelligence B2B
+              </span>
+            </div>
 
             <h1 className="font-display reveal reveal-1 mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight md:text-[3.25rem]">
               Charge ton CSV.{" "}
@@ -141,6 +270,53 @@ export default function LandingPage() {
           <PreviewCard />
         </section>
 
+        {/* PREUVE — résultats mission pilote */}
+        <section className="pb-8">
+          <div className="border-gradient glass reveal rounded-2xl px-6 py-8">
+            <p className="mb-6 text-center font-mono text-[11px] uppercase tracking-widest text-muted">
+              Résultats — première mission pilote, prospection à froid
+            </p>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+              <Stat value="9" label="RDV générés" sub="sur la mission" accent />
+              <Stat value="100" label="appels composés" sub="décrochés + non décrochés" />
+              <Stat value="9 %" label="RDV par appel" sub="taux de conversion" />
+            </div>
+          </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section className="border-t border-border py-16">
+          <div className="reveal mx-auto max-w-[640px] text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted">
+              Comment ça marche
+            </span>
+            <h2 className="font-display mt-5 text-2xl font-extrabold tracking-tight text-ink md:text-3xl">
+              Trois étapes.{" "}
+              <span className="text-gradient">Zéro courbe d&apos;apprentissage.</span>
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted">
+              De ton fichier brut à un plan d&apos;appel par lead, en moins de deux minutes.
+            </p>
+          </div>
+          <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {STEPS.map(({ icon: Icon, n, title, text }, i) => (
+              <div
+                key={n}
+                className={`border-gradient glass reveal reveal-${i + 1} rounded-xl p-6`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-elevated">
+                    <Icon size={18} className="text-accent" />
+                  </span>
+                  <span className="font-mono text-2xl font-extrabold text-muted/30">{n}</span>
+                </div>
+                <h3 className="font-display mt-4 text-base font-semibold text-ink">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* FEATURES */}
         <section className="border-t border-border py-16">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -161,6 +337,27 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* PRODUCT SHOWCASE — anatomie d'un brief */}
+        <section className="border-t border-border py-16">
+          <div className="reveal mx-auto max-w-[640px] text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted">
+              Anatomie d&apos;un brief
+            </span>
+            <h2 className="font-display mt-5 text-2xl font-extrabold tracking-tight text-ink md:text-3xl">
+              Pas un score opaque.{" "}
+              <span className="text-gradient">Un brief que tu peux défendre.</span>
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted">
+              Chaque lead est décortiqué axe par axe : pourquoi ce score, qui est le
+              contact, quoi dire, et le piège à éviter. Rien de générique — tout est
+              rattaché à ce lead précis.
+            </p>
+          </div>
+          <div className="reveal reveal-2 mx-auto mt-10 max-w-[680px]">
+            <BriefShowcase />
+          </div>
+        </section>
+
         {/* CLOSING CTA */}
         <section className="pb-24">
           <div className="border-gradient glass relative overflow-hidden rounded-2xl px-8 py-14 text-center">
@@ -173,6 +370,12 @@ export default function LandingPage() {
               opérationnel.
             </p>
             <CtaPrimary className="relative mt-7 px-6 py-3 text-sm" />
+            <p className="relative mt-4 text-xs text-muted">
+              À partir de <span className="font-medium text-ink">23€/mois</span> · 14 jours gratuits, sans carte ·{" "}
+              <Link href="/pricing" className="text-accent transition-opacity hover:opacity-80">
+                Voir les tarifs
+              </Link>
+            </p>
           </div>
         </section>
       </main>
