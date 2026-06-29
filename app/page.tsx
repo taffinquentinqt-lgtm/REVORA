@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CtaPrimary, AuthSecondaryLink } from "@/components/ui/LandingCta";
 import { Logo } from "@/components/ui/Logo";
+import { WaitlistForm } from "@/components/ui/WaitlistForm";
 
 const STEPS = [
   {
@@ -355,6 +356,25 @@ export default function LandingPage() {
           </div>
           <div className="reveal reveal-2 mx-auto mt-10 max-w-[680px]">
             <BriefShowcase />
+          </div>
+        </section>
+
+        {/* EMAIL CAPTURE */}
+        <section className="pb-16">
+          <div className="border-gradient glass reveal mx-auto max-w-[640px] rounded-2xl px-8 py-10 text-center">
+            <p className="font-mono text-xs uppercase tracking-widest text-muted">
+              Reste dans la boucle
+            </p>
+            <h2 className="font-display mt-3 text-xl font-extrabold tracking-tight text-ink md:text-2xl">
+              Pas encore prêt à tester ?
+            </h2>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
+              Laisse ton email — on t&apos;envoie un cas concret d&apos;analyse REVORA et les
+              nouveautés produit. Zéro spam.
+            </p>
+            <div className="mt-6">
+              <WaitlistForm source="landing" />
+            </div>
           </div>
         </section>
 
