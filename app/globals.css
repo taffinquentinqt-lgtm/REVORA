@@ -216,6 +216,23 @@ body {
   animation: revora-drift 14s ease-in-out infinite;
 }
 
+/* Cartes de leads flottantes en fond de hero (décoratif) */
+@keyframes revora-float-a {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-18px) rotate(-2deg); }
+}
+@keyframes revora-float-b {
+  0%, 100% { transform: translateY(0) rotate(3deg); }
+  50% { transform: translateY(16px) rotate(5deg); }
+}
+@keyframes revora-float-c {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-14px) rotate(1deg); }
+}
+.float-a { animation: revora-float-a 9s ease-in-out infinite; }
+.float-b { animation: revora-float-b 11s ease-in-out infinite; }
+.float-c { animation: revora-float-c 10s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .drift { animation: none; }
+  .reveal, .drift, .float-a, .float-b, .float-c { animation: none; }
 }

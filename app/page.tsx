@@ -6,7 +6,6 @@ import {
   Sparkles,
   User,
   AlertTriangle,
-  BadgeCheck,
   Upload,
   SlidersHorizontal,
   FileText,
@@ -14,6 +13,9 @@ import {
 import { CtaPrimary, AuthSecondaryLink } from "@/components/ui/LandingCta";
 import { Logo } from "@/components/ui/Logo";
 import { WaitlistForm } from "@/components/ui/WaitlistForm";
+import { ScoringRadar } from "@/components/ui/ScoringRadar";
+import { ConfidenceSignal } from "@/components/ui/ConfidenceSignal";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const STEPS = [
   {
@@ -53,6 +55,41 @@ const FEATURES = [
     text: "L'erreur classique sur ce profil précis — avant que tu la fasses.",
   },
 ];
+
+/** Mini-carte de lead flottante (décoratif, fond de hero). */
+function FloatCard({
+  className = "",
+  name,
+  sub,
+  kind,
+  score,
+  c,
+}: {
+  className?: string;
+  name: string;
+  sub: string;
+  kind: string;
+  score: number;
+  c: string;
+}) {
+  return (
+    <div className={`absolute w-[150px] rounded-lg border border-border bg-surface/70 p-2.5 opacity-[0.15] backdrop-blur ${className}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-ink">{name}</span>
+        <span
+          className="rounded-[3px] border px-1 py-0.5 font-mono text-[8px] font-bold uppercase"
+          style={{ color: c, borderColor: c, backgroundColor: `${c}1f` }}
+        >
+          {kind}
+        </span>
+      </div>
+      <p className="mt-0.5 text-[9px] text-muted">{sub}</p>
+      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: c }} />
+      </div>
+    </div>
+  );
+}
 
 /** Aperçu produit stylisé (statique) — vend le résultat sans capture d'écran. */
 function PreviewCard() {
@@ -128,11 +165,17 @@ function Stat({ value, label, sub, accent }: { value: string; label: string; sub
 
 /** Anatomie d'un brief — la profondeur réelle d'une analyse, pas juste un score. */
 function BriefShowcase() {
-  const axes = [
-    { label: "Fit titre", note: 9, raison: "CDO — décideur direct sur la donnée" },
-    { label: "Fit secteur", note: 9, raison: "Scale-up data, cœur de cible" },
-    { label: "Fit taille", note: 8, raison: "180 personnes — budget et besoin réels" },
-    { label: "Fit problème", note: 8, raison: "Dette technique data citée publiquement" },
+  const scoring = {
+    fit_titre: { note: 9, raison: "CDO — décideur direct sur la donnée" },
+    fit_secteur: { note: 9, raison: "Scale-up data, cœur de cible" },
+    fit_taille: { note: 8, raison: "180 personnes — budget et besoin réels" },
+    fit_probleme: { note: 8, raison: "Dette technique data citée publiquement" },
+  };
+  const reasons = [
+    { label: "Titre", note: scoring.fit_titre.note, raison: scoring.fit_titre.raison },
+    { label: "Secteur", note: scoring.fit_secteur.note, raison: scoring.fit_secteur.raison },
+    { label: "Taille", note: scoring.fit_taille.note, raison: scoring.fit_taille.raison },
+    { label: "Problème", note: scoring.fit_probleme.note, raison: scoring.fit_probleme.raison },
   ];
   return (
     <div className="border-gradient glass rounded-xl p-1.5">
@@ -147,9 +190,7 @@ function BriefShowcase() {
             <span className="rounded-[4px] border border-go/60 bg-go/10 px-2 py-0.5 font-mono text-xs font-bold text-go">
               GO · 88
             </span>
-            <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-accent2">
-              <BadgeCheck size={11} /> Confiance haute
-            </span>
+            <ConfidenceSignal confidence="haute" />
           </div>
         </div>
 
@@ -158,17 +199,17 @@ function BriefShowcase() {
           <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted">
             Scoring détaillé — pourquoi ce score, axe par axe
           </p>
-          <div className="flex flex-col gap-2.5">
-            {axes.map((a) => (
-              <div key={a.label} className="flex items-center gap-3">
-                <span className="w-[84px] shrink-0 text-xs text-muted">{a.label}</span>
-                <div className="h-1.5 w-[64px] shrink-0 overflow-hidden rounded-full bg-border">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${a.note * 10}%` }} />
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-5">
+            <ScoringRadar scoring={scoring} score={88} size={200} />
+            <div className="flex w-full flex-col gap-2">
+              {reasons.map((a) => (
+                <div key={a.label} className="flex items-baseline gap-2 text-xs">
+                  <span className="w-16 shrink-0 text-muted">{a.label}</span>
+                  <span className="w-8 shrink-0 font-mono text-ink">{a.note}/10</span>
+                  <span className="flex-1 text-muted/80">{a.raison}</span>
                 </div>
-                <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-ink">{a.note}</span>
-                <span className="hidden flex-1 truncate text-xs text-muted sm:block">{a.raison}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -217,6 +258,13 @@ export default function LandingPage() {
       <div className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-[700px]" />
       <div className="glow glow-violet drift absolute -left-32 -top-24 h-[520px] w-[520px]" />
       <div className="glow glow-teal absolute right-0 top-40 h-[420px] w-[420px]" />
+
+      {/* cartes de leads flottantes (décoratif, desktop only) */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 hidden h-[640px] overflow-hidden lg:block">
+        <FloatCard className="float-a left-[3%] top-[160px]" name="Marie D." sub="Acme Data" kind="GO" score={88} c="#00d4aa" />
+        <FloatCard className="float-c right-[4%] top-[110px]" name="Tom G." sub="Vault Sec" kind="SKIP" score={34} c="#ff4d6d" />
+        <FloatCard className="float-b right-[15%] top-[400px]" name="Léa B." sub="Northwind" kind="MAYBE" score={71} c="#f5a623" />
+      </div>
 
       <main className="relative mx-auto max-w-[1180px] px-5">
         {/* HERO */}
@@ -286,6 +334,7 @@ export default function LandingPage() {
         </section>
 
         {/* HOW IT WORKS */}
+        <ScrollReveal>
         <section className="border-t border-border py-16">
           <div className="reveal mx-auto max-w-[640px] text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted">
@@ -317,6 +366,7 @@ export default function LandingPage() {
             ))}
           </div>
         </section>
+        </ScrollReveal>
 
         {/* FEATURES */}
         <section className="border-t border-border py-16">
@@ -339,6 +389,7 @@ export default function LandingPage() {
         </section>
 
         {/* PRODUCT SHOWCASE — anatomie d'un brief */}
+        <ScrollReveal>
         <section className="border-t border-border py-16">
           <div className="reveal mx-auto max-w-[640px] text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-muted">
@@ -358,8 +409,10 @@ export default function LandingPage() {
             <BriefShowcase />
           </div>
         </section>
+        </ScrollReveal>
 
         {/* EMAIL CAPTURE */}
+        <ScrollReveal>
         <section className="pb-16">
           <div className="border-gradient glass reveal mx-auto max-w-[640px] rounded-2xl px-8 py-10 text-center">
             <p className="font-mono text-xs uppercase tracking-widest text-muted">
@@ -377,8 +430,10 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        </ScrollReveal>
 
         {/* CLOSING CTA */}
+        <ScrollReveal>
         <section className="pb-24">
           <div className="border-gradient glass relative overflow-hidden rounded-2xl px-8 py-14 text-center">
             <div className="glow glow-violet absolute left-1/2 top-0 h-64 w-64 -translate-x-1/2" />
@@ -398,6 +453,7 @@ export default function LandingPage() {
             </p>
           </div>
         </section>
+        </ScrollReveal>
       </main>
 
       {/* FOOTER */}

@@ -13,7 +13,9 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import type { ScoredLead, Confidence, CriterionScore } from "@/lib/types";
+import { ScoringRadar } from "@/components/ui/ScoringRadar";
+import { ConfidenceSignal } from "@/components/ui/ConfidenceSignal";
+import type { ScoredLead } from "@/lib/types";
 
 interface Props {
   item: ScoredLead;
@@ -32,43 +34,12 @@ function Heading({ children }: { children: React.ReactNode }) {
   );
 }
 
-const CONFIDENCE_META: Record<Confidence, { label: string; cls: string }> = {
-  haute: { label: "Confiance haute", cls: "border-go/50 bg-go/10 text-go" },
-  moyenne: { label: "Confiance moyenne", cls: "border-maybe/50 bg-maybe/10 text-maybe" },
-  faible: { label: "Confiance faible", cls: "border-skip/50 bg-skip/10 text-skip" },
-};
-
-function ConfidenceChip({ confidence }: { confidence: Confidence }) {
-  const meta = CONFIDENCE_META[confidence] ?? CONFIDENCE_META.moyenne;
-  return (
-    <span
-      className={`inline-flex rounded-[4px] border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${meta.cls}`}
-    >
-      {meta.label}
-    </span>
-  );
-}
-
-/** Une ligne du scoring décomposé : libellé, barre /10, justification. */
-function CriterionRow({ label, crit }: { label: string; crit: CriterionScore }) {
-  const note = Math.max(0, Math.min(10, crit.note));
-  const barCls =
-    note >= 7 ? "bg-go" : note >= 4 ? "bg-maybe" : "bg-skip";
-  return (
-    <div className="border-b border-border px-3 py-2.5 last:border-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium text-ink">{label}</span>
-        <span className="font-mono text-xs text-muted">{note}/10</span>
-      </div>
-      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
-        <div className={`h-full rounded-full ${barCls}`} style={{ width: `${note * 10}%` }} />
-      </div>
-      {crit.raison && (
-        <p className="mt-1.5 text-xs leading-relaxed text-muted">{crit.raison}</p>
-      )}
-    </div>
-  );
-}
+const AXIS_LABELS: { label: string; key: "fit_titre" | "fit_secteur" | "fit_taille" | "fit_probleme" }[] = [
+  { label: "Titre", key: "fit_titre" },
+  { label: "Secteur", key: "fit_secteur" },
+  { label: "Taille", key: "fit_taille" },
+  { label: "Problème", key: "fit_probleme" },
+];
 
 export function LeadDrawer({
   item,
@@ -140,7 +111,7 @@ export function LeadDrawer({
             </p>
             {score?.confidence && (
               <div className="mt-2">
-                <ConfidenceChip confidence={score.confidence} />
+                <ConfidenceSignal confidence={score.confidence} />
               </div>
             )}
           </div>
@@ -182,12 +153,25 @@ export function LeadDrawer({
                   score.scoring.fit_taille.raison ||
                   score.scoring.fit_probleme.raison) && (
                 <div>
-                  <Heading>Scoring détaillé · {score.score}/100</Heading>
-                  <div className="overflow-hidden rounded-md border border-border bg-elevated">
-                    <CriterionRow label="Fit titre" crit={score.scoring.fit_titre} />
-                    <CriterionRow label="Fit secteur" crit={score.scoring.fit_secteur} />
-                    <CriterionRow label="Fit taille" crit={score.scoring.fit_taille} />
-                    <CriterionRow label="Fit problème" crit={score.scoring.fit_probleme} />
+                  <Heading>Scoring détaillé</Heading>
+                  <div className="rounded-md border border-border bg-elevated p-4">
+                    <div className="flex justify-center">
+                      <ScoringRadar scoring={score.scoring} score={score.score} size={230} />
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2.5 border-t border-border pt-4">
+                      {AXIS_LABELS.map(({ label, key }) => {
+                        const crit = score.scoring[key];
+                        if (!crit?.raison) return null;
+                        const note = Math.max(0, Math.min(10, crit.note));
+                        return (
+                          <div key={key} className="flex gap-2 text-xs">
+                            <span className="w-16 shrink-0 font-medium text-ink">{label}</span>
+                            <span className="w-9 shrink-0 font-mono text-muted">{note}/10</span>
+                            <span className="flex-1 leading-relaxed text-muted">{crit.raison}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
