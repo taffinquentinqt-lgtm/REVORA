@@ -44,8 +44,9 @@ SCORING & CONFIANCE
 ═══════════════════════════════════════
 FORMAT DE SORTIE
 ═══════════════════════════════════════
-Retourne UNIQUEMENT ce JSON valide, sans markdown, sans texte autour :
+Retourne UNIQUEMENT ce JSON valide, sans markdown, sans texte autour. Le TOUT PREMIER champ "raisonnement" est ton brouillon de réflexion : tu y déroules ta méthode AVANT de remplir le reste (l'ordre compte — tu réfléchis d'abord, tu conclus ensuite) :
 {
+  "raisonnement": string (3-5 phrases, ton analyse interne : déroule les 5 étapes AVANT de conclure — lecture des données réelles et des manques, évaluation des 4 axes, contrôle de cohérence du score global avec ces 4 notes, lecture du persona. Ce champ conditionne la qualité de tout le reste.),
   "score": number (0-100),
   "priority": "GO" | "MAYBE" | "SKIP",
   "confidence": "haute" | "moyenne" | "faible",
@@ -76,6 +77,10 @@ Exemple GO — Lead: VP Sales, "Pennylane" (Fintech/SaaS compta), 250 salariés.
 
 Exemple VETO — Lead: Founder, agence de prospection externalisée concurrente, 15 salariés. ICP: équipes sales internes B2B.
 → veto true, veto_reason "Concurrent direct : revend de la prospection, ne l'achète pas", score 12, SKIP, confidence haute. scoring fit_titre 2, fit_secteur 1, fit_taille 3, fit_probleme 1.
+
+Exemple MAYBE (hors SaaS) — Lead: Directrice, association d'aide à domicile (ADMR), secteur services à la personne / médico-social, 60 salariés. ICP: structures de services à la personne, problème = recrutement et fidélisation des intervenants terrain.
+→ scoring fit_titre 8 ("Directrice = décisionnaire sur les outils RH/recrutement"), fit_secteur 7 ("aide à domicile : tension de recrutement structurelle et reconnue"), fit_taille 6 ("60 salariés = besoin réel mais budget associatif contraint, décision lente"), fit_probleme 6 ("la rétention des intervenants est un sujet, mais peut passer après l'urgence des plannings"). score 64, MAYBE, confidence moyenne (taille et secteur clairs, mais maturité d'achat incertaine en associatif).
+→ ouverture : "Sur une structure ADMR comme la vôtre, le coût caché c'est le turnover des intervenants — chaque départ, ce sont des tournées à recouvrir en urgence. Comment vous gérez ce trou aujourd'hui ?" (nomme l'enjeu réel du secteur, sans rien inventer sur cette personne).
 
 Sois tranchant. Pas de remplissage creux. Chaque mot sert le SDR qui va appeler.`;
 

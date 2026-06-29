@@ -17,13 +17,15 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Moteur : Google Gemini (REST, sans SDK). Modèle avec quota gratuit actif.
-const MODEL = "gemini-2.5-flash";
+// Surchargeable via GEMINI_MODEL (ex: "gemini-2.5-pro" pour plus de qualité).
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const MAX_BATCH = 10;
-// Généreux : le brief enrichi (scoring 4 axes + persona + briefing + ouverture +
-// 3 objections + timing + piège) ne doit JAMAIS être tronqué — cause n°1 des
-// champs vides.
-const MAX_TOKENS = 6144;
+// Généreux : le brief enrichi (raisonnement + scoring 4 axes + persona + briefing
+// + ouverture + 3 objections + timing + piège) ne doit JAMAIS être tronqué —
+// cause n°1 des champs vides. Le champ "raisonnement" (chain-of-thought) ajoute
+// du volume, d'où la marge.
+const MAX_TOKENS = 8192;
 // Bas : le scoring doit être stable et reproductible, pas créatif.
 const TEMPERATURE = 0.4;
 const VALID_PRIORITIES: Priority[] = ["GO", "MAYBE", "SKIP"];
