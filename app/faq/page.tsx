@@ -18,10 +18,6 @@ const SECTIONS = [
         r: "REVORA est conçu pour les SDR, BDR, Account Executives et équipes commerciales B2B qui font de la prospection outbound. Si tu gères des fichiers de leads et que tu passes du temps à préparer tes approches, REVORA te fait gagner plusieurs heures par semaine.",
       },
       {
-        q: "Quelle IA est utilisée pour le scoring ?",
-        r: "REVORA utilise Google Gemini 2.5 Flash, un des modèles de langage les plus performants du marché. Le prompt système a été conçu et calibré spécifiquement pour la prospection B2B — ce n'est pas un usage générique de l'IA, c'est un outil métier.",
-      },
-      {
         q: "Les briefs sont-ils vraiment personnalisés ?",
         r: "Oui. Pour chaque lead, REVORA analyse le titre de poste, l'entreprise, le secteur, la taille, et les croise avec ton ICP (problèmes cibles, taille de deal, cycle de vente). La première phrase d'ouverture est rédigée pour ce contact précis — pas un template.",
       },
@@ -32,11 +28,11 @@ const SECTIONS = [
     items: [
       {
         q: "Mes fichiers CSV sont-ils stockés sur vos serveurs ?",
-        r: "Les leads uploadés sont traités en temps réel via l'API Gemini pour le scoring. Les résultats (briefs, scores) sont stockés dans Firestore, associés uniquement à ton compte. Chaque utilisateur est isolé — personne d'autre ne peut voir tes données.",
+        r: "Les leads uploadés sont traités en temps réel par notre moteur d'IA pour le scoring. Les résultats (briefs, scores) sont stockés dans Firestore, associés uniquement à ton compte. Chaque utilisateur est isolé — personne d'autre ne peut voir tes données.",
       },
       {
         q: "Mes données sont-elles utilisées pour entraîner l'IA ?",
-        r: "Non. Les appels à l'API Gemini se font via un abonnement professionnel qui exclut explicitement l'utilisation des données pour l'entraînement des modèles. Tes leads ne servent pas à améliorer l'IA de Google.",
+        r: "Non. Notre moteur d'IA est exploité via un abonnement professionnel qui exclut explicitement l'utilisation des données pour l'entraînement des modèles. Tes leads ne servent pas à améliorer une IA tierce.",
       },
       {
         q: "REVORA est-il conforme au RGPD ?",

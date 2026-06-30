@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           <div className="overflow-hidden rounded-md border border-border">
             {[
               { name: "Google Firebase", role: "Authentification + base de données (Firestore)", pays: "UE/USA (SCC)" },
-              { name: "Google Gemini API", role: "Traitement IA des données de leads", pays: "USA (SCC)" },
+              { name: "Google (API d'IA)", role: "Traitement IA des données de leads", pays: "USA (SCC)" },
               { name: "Resend", role: "Envoi d'emails transactionnels", pays: "USA (SCC)" },
               { name: "Vercel", role: "Hébergement de l'application", pays: "UE/USA (SCC)" },
             ].map((row, i) => (

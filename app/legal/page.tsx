@@ -49,7 +49,7 @@ export default function LegalPage() {
         <section>
           <h2 className="mb-3 font-display text-base font-bold text-ink">4. Données traitées par l'IA</h2>
           <p className="mb-3">
-            REVORA utilise l'API Google Gemini pour analyser les données de leads fournies par l'utilisateur. En uploadant un fichier CSV, l'utilisateur reconnaît et accepte que les données contenues dans ce fichier soient transmises à Google (via l'API Gemini) dans le but exclusif de générer des briefs de vente.
+            REVORA utilise une API d'intelligence artificielle fournie par Google (Google LLC) pour analyser les données de leads fournies par l'utilisateur. En uploadant un fichier CSV, l'utilisateur reconnaît et accepte que les données contenues dans ce fichier soient transmises à Google dans le but exclusif de générer des briefs de vente.
           </p>
           <p>
             L'utilisateur est seul responsable de la licéité des données qu'il traite via REVORA et doit s'assurer qu'il dispose des droits nécessaires sur ces données conformément au RGPD et à toute réglementation applicable.

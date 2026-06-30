@@ -221,7 +221,7 @@ export default function PricingPage() {
               { q: "Y a-t-il un engagement ?", r: "Non. Les abonnements mensuels sont sans engagement, résiliables à tout moment depuis ton espace. L'abonnement annuel est prépayé et non remboursable après 14 jours." },
               { q: "Que se passe-t-il si je dépasse mon quota ?", r: "Tu reçois une notification à 80 % du quota. Au-delà, l'analyse est suspendue jusqu'au renouvellement ou à l'upgrade. Pas de surcharge automatique." },
               { q: "Puis-je changer de plan ?", r: "Oui, à tout moment. L'upgrade est immédiat. Le downgrade prend effet à la prochaine période de facturation." },
-              { q: "Les données de mes clients sont-elles protégées ?", r: "Chaque utilisateur accède uniquement à ses propres données. Les fichiers CSV sont traités via l'API Gemini pour le scoring puis stockés chiffrés. Voir notre politique de confidentialité." },
+              { q: "Les données de mes clients sont-elles protégées ?", r: "Chaque utilisateur accède uniquement à ses propres données. Les fichiers CSV sont traités par notre moteur d'IA pour le scoring puis stockés chiffrés. Voir notre politique de confidentialité." },
             ].map(({ q, r }) => (
               <div key={q} className="rounded-xl border border-border bg-surface/30 px-6 py-5">
                 <p className="font-medium text-ink">{q}</p>
