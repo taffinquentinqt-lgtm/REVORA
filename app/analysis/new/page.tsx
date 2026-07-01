@@ -151,7 +151,7 @@ export default function NewAnalysisPage() {
     try {
       for (let i = 0; i < leads.length; i += BATCH_SIZE) {
         const batch = leads.slice(i, i + BATCH_SIZE);
-        const res = await apiPost("/api/analyze", { icp, leads: batch });
+        const res = await apiPost("/api/analyze", { icp, leads: batch, totalLeads: leads.length });
         if (!res.ok) {
           const { error } = (await res.json().catch(() => ({}))) as {
             error?: string;

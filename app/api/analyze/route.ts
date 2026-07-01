@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireActiveAccess } from "@/lib/server-auth";
+import { requireActiveAccess, isAdminEmail } from "@/lib/server-auth";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
 import type {
   ICPConfig,
@@ -21,6 +21,7 @@ export const maxDuration = 60;
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_BATCH = 10;
+const MAX_LEADS_NON_ADMIN = 200;
 // Généreux : le brief enrichi (raisonnement + scoring 4 axes + persona + briefing
 // + ouverture + 3 objections + timing + piège) ne doit JAMAIS être tronqué —
 // cause n°1 des champs vides. Le champ "raisonnement" (chain-of-thought) ajoute
@@ -35,6 +36,7 @@ const VALID_CONFIDENCE: Confidence[] = ["haute", "moyenne", "faible"];
 interface AnalyzeBody {
   icp?: ICPConfig;
   leads?: Lead[];
+  totalLeads?: number;
 }
 
 /** Pull the first balanced JSON object out of a model response. */
@@ -262,7 +264,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide." }, { status: 400 });
   }
 
-  const { icp, leads } = body;
+  const { icp, leads, totalLeads } = body;
   if (!icp || !Array.isArray(leads) || leads.length === 0) {
     return NextResponse.json(
       { error: "Requête invalide : icp et leads requis." },
@@ -274,6 +276,15 @@ export async function POST(req: NextRequest) {
       { error: `Batch trop large (max ${MAX_BATCH}).` },
       { status: 400 }
     );
+  }
+  if (!isAdminEmail(auth.user.email)) {
+    const total = typeof totalLeads === "number" ? totalLeads : leads.length;
+    if (total > MAX_LEADS_NON_ADMIN) {
+      return NextResponse.json(
+        { error: `Limite dépassée : maximum ${MAX_LEADS_NON_ADMIN} leads par analyse.` },
+        { status: 403 }
+      );
+    }
   }
 
   try {
