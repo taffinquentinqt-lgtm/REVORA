@@ -278,7 +278,10 @@ export async function POST(req: NextRequest) {
     );
   }
   if (!isAdminEmail(auth.user.email)) {
-    const total = typeof totalLeads === "number" ? totalLeads : leads.length;
+    // On prend le MAX entre totalLeads (déclaré) et leads.length (réel dans ce batch)
+    // pour qu'un client malveillant ne puisse pas sous-déclarer son total.
+    const declared = typeof totalLeads === "number" ? totalLeads : leads.length;
+    const total = Math.max(declared, leads.length);
     if (total > MAX_LEADS_NON_ADMIN) {
       return NextResponse.json(
         { error: `Limite dépassée : maximum ${MAX_LEADS_NON_ADMIN} leads par analyse.` },
