@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveAccess, isAdminEmail } from "@/lib/server-auth";
+import { adminDb, isAdminEnabled } from "@/lib/firebase-admin";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
 import type {
   ICPConfig,
@@ -21,7 +22,7 @@ export const maxDuration = 60;
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_BATCH = 10;
-const MAX_LEADS_NON_ADMIN = 200;
+const MONTHLY_QUOTA = 200;
 // Généreux : le brief enrichi (raisonnement + scoring 4 axes + persona + briefing
 // + ouverture + 3 objections + timing + piège) ne doit JAMAIS être tronqué —
 // cause n°1 des champs vides. Le champ "raisonnement" (chain-of-thought) ajoute
@@ -36,7 +37,6 @@ const VALID_CONFIDENCE: Confidence[] = ["haute", "moyenne", "faible"];
 interface AnalyzeBody {
   icp?: ICPConfig;
   leads?: Lead[];
-  totalLeads?: number;
 }
 
 /** Pull the first balanced JSON object out of a model response. */
@@ -264,7 +264,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide." }, { status: 400 });
   }
 
-  const { icp, leads, totalLeads } = body;
+  const { icp, leads } = body;
   if (!icp || !Array.isArray(leads) || leads.length === 0) {
     return NextResponse.json(
       { error: "Requête invalide : icp et leads requis." },
@@ -277,15 +277,30 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (!isAdminEmail(auth.user.email)) {
-    // On prend le MAX entre totalLeads (déclaré) et leads.length (réel dans ce batch)
-    // pour qu'un client malveillant ne puisse pas sous-déclarer son total.
-    const declared = typeof totalLeads === "number" ? totalLeads : leads.length;
-    const total = Math.max(declared, leads.length);
-    if (total > MAX_LEADS_NON_ADMIN) {
+  const isAdmin = isAdminEmail(auth.user.email);
+
+  // Quota mensuel : 200 leads/mois pour les non-admins, stocké dans Firestore.
+  // Clé du mois : "YYYY-MM" — se remet à zéro automatiquement chaque mois.
+  const monthKey = new Date().toISOString().slice(0, 7);
+  let usageRef: FirebaseFirestore.DocumentReference | null = null;
+
+  if (!isAdmin && isAdminEnabled && adminDb) {
+    usageRef = adminDb
+      .collection("users")
+      .doc(auth.user.uid)
+      .collection("usage")
+      .doc(monthKey);
+
+    const usageSnap = await usageRef.get();
+    const leadsScored: number = (usageSnap.data()?.leadsScored as number) ?? 0;
+
+    if (leadsScored + leads.length > MONTHLY_QUOTA) {
+      const remaining = Math.max(0, MONTHLY_QUOTA - leadsScored);
       return NextResponse.json(
-        { error: `Limite dépassée : maximum ${MAX_LEADS_NON_ADMIN} leads par analyse.` },
-        { status: 403 }
+        {
+          error: `Quota mensuel atteint. Tu as utilisé ${leadsScored}/${MONTHLY_QUOTA} leads ce mois-ci.${remaining > 0 ? ` Il te reste ${remaining} leads.` : ""}`,
+        },
+        { status: 429 }
       );
     }
   }
@@ -294,6 +309,18 @@ export async function POST(req: NextRequest) {
     const results = await Promise.all(
       leads.map((lead) => scoreLead(apiKey, icp, lead))
     );
+
+    // Incrément du quota après scoring réussi (on ne compte que les leads vraiment traités).
+    if (!isAdmin && usageRef) {
+      const scored = results.filter((r) => r.score !== null).length;
+      if (scored > 0) {
+        await usageRef.set(
+          { leadsScored: (await usageRef.get().then((s) => (s.data()?.leadsScored as number) ?? 0)) + scored },
+          { merge: true }
+        );
+      }
+    }
+
     return NextResponse.json({ results });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur interne";
