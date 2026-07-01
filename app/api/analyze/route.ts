@@ -16,10 +16,10 @@ import type {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Moteur : Google Gemini (REST, sans SDK). Modèle avec quota gratuit actif.
-// Surchargeable via GEMINI_MODEL (ex: "gemini-2.5-pro" pour plus de qualité).
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Moteur : OpenAI (REST, sans SDK). Chat Completions + mode JSON.
+// Surchargeable via OPENAI_MODEL (ex: "gpt-4o-mini" pour réduire le coût).
+const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_BATCH = 10;
 // Généreux : le brief enrichi (raisonnement + scoring 4 axes + persona + briefing
 // + ouverture + 3 objections + timing + piège) ne doit JAMAIS être tronqué —
@@ -153,46 +153,48 @@ function missingFields(s: LeadScore): string[] {
   return missing;
 }
 
-interface GeminiResult {
+interface ModelResult {
   text: string;
   truncated: boolean;
 }
 
-/** Appel Gemini (REST). Retourne le texte concaténé + drapeau de troncature. */
-async function callGemini(
+/** Appel OpenAI (Chat Completions, mode JSON). Retourne le texte + drapeau de troncature. */
+async function callModel(
   apiKey: string,
   userMessage: string
-): Promise<GeminiResult> {
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+): Promise<ModelResult> {
+  const res = await fetch(OPENAI_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [{ role: "user", parts: [{ text: userMessage }] }],
-      generationConfig: {
-        temperature: TEMPERATURE,
-        maxOutputTokens: MAX_TOKENS,
-        responseMimeType: "application/json",
-      },
+      model: MODEL,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      temperature: TEMPERATURE,
+      max_tokens: MAX_TOKENS,
+      response_format: { type: "json_object" },
     }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(`OpenAI ${res.status}: ${body.slice(0, 200)}`);
   }
 
   const data = (await res.json()) as {
-    candidates?: {
-      content?: { parts?: { text?: string }[] };
-      finishReason?: string;
+    choices?: {
+      message?: { content?: string };
+      finish_reason?: string;
     }[];
   };
-  const candidate = data.candidates?.[0];
-  const text = (candidate?.content?.parts ?? [])
-    .map((p) => p.text ?? "")
-    .join("");
-  return { text, truncated: candidate?.finishReason === "MAX_TOKENS" };
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content ?? "";
+  return { text, truncated: choice?.finish_reason === "length" };
 }
 
 async function scoreLead(
@@ -205,7 +207,7 @@ async function scoreLead(
   // initial try + 2 retries
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const { text, truncated } = await callGemini(
+      const { text, truncated } = await callModel(
         apiKey,
         buildUserMessage(icp, lead)
       );
@@ -245,10 +247,10 @@ export async function POST(req: NextRequest) {
   const auth = await requireActiveAccess(req);
   if ("response" in auth) return auth.response;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY manquante côté serveur." },
+      { error: "OPENAI_API_KEY manquante côté serveur." },
       { status: 500 }
     );
   }
